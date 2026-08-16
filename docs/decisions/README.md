@@ -20,3 +20,6 @@ ADR은 팀 전체에 영향을 주거나 나중에 되돌리기 비싼 결정을
 | --- | --- | --- | --- |
 | [`0001`](0001-expo-frontend.md) | Accepted | 2026-08-16 | Expo 기반 프런트엔드 구성 |
 | [`0002`](0002-fastapi-backend-monolith.md) | Accepted | 2026-08-16 | FastAPI 기반 백엔드 모놀리스 구성 |
+| [`0003`](0003-anonymous-role-tokens.md) | Accepted | 2026-08-16 | 참여 코드와 익명 역할 토큰 |
+| [`0004`](0004-polling-sync.md) | Accepted | 2026-08-16 | 2초 폴링 기반 임무 동기화 |
+| [`0005`](0005-gps-virtual-demo-route.md) | Accepted | 2026-08-16 | 실제 GPS와 가상 체크포인트 결합 |
