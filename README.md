@@ -29,10 +29,14 @@ npm start
 ```bash
 cd backend
 uv sync --all-groups
-uv run uvicorn app.main:app --reload
+cp .env.example .env  # 실제 로컬 값으로 바꾼 뒤 사용; .env는 커밋하지 않음
+uv run uvicorn --app-dir src --env-file .env app.main:app --reload
 ```
 
-세부 명령과 API 계약은 [`backend/README.md`](backend/README.md)를 확인합니다.
+`src` layout은 `--app-dir src`가 필요합니다. `Settings`는 `.env`를 직접 읽지 않으므로,
+로컬 `.env`는 Uvicorn의 `--env-file .env`로 process environment에 주입합니다. 셸과 AWS
+Lambda에서는 같은 이름의 환경 변수를 직접 주입합니다. 세부 명령과 API 계약은
+[`backend/README.md`](backend/README.md)를 확인합니다.
 
 ## 문서 진입점
 
