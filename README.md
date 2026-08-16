@@ -1,50 +1,24 @@
-# Welcome to your Expo app 👋
+# Codex Hackathon
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+5시간 내 빠른 개발을 위한 프런트엔드·백엔드 모노레포입니다.
 
-## Get started
+## Repository layout
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```text
+.
+├── frontend/        # 프런트엔드 애플리케이션
+├── backend/         # 백엔드 애플리케이션
+├── docs/            # 스펙, 아키텍처, 의사결정, 개발 규칙
+├── .github/         # GitHub 협업 템플릿
+└── AGENTS.md        # 작업 전 확인할 문서 인덱스
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+현재 단계에서는 기술 스택을 고정하지 않습니다. 스택을 선택하면 먼저 ADR을 추가하고,
+각 애플리케이션 디렉터리에서 프로젝트를 초기화합니다.
 
-## Learn more
+## Start here
 
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- 프로젝트 문서: [`docs/README.md`](docs/README.md)
+- 작업자 인덱스: [`AGENTS.md`](AGENTS.md)
+- 제품 스펙: [`docs/spec.md`](docs/spec.md)
+- 아키텍처: [`docs/architecture.md`](docs/architecture.md)
