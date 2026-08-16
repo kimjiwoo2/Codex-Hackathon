@@ -14,8 +14,9 @@ from app.api.router import api_router
 from app.core.config import Settings, get_settings
 from app.db.base import Base
 from app.db.session import create_neon_engine, create_session_factory
-from app.integrations.openai.client import OpenAIVisionClient
+from app.integrations.openai.client import OpenAIVisionClient, VisionUnavailable
 from app.integrations.tmap.client import TmapClient
+from app.integrations.tmap.errors import TmapUnavailable
 from app.repositories.missions import MissionRepository
 from app.security.roles import MissionRoleTokenVerifier
 from app.services.item_vision import ItemVisionService
@@ -41,6 +42,23 @@ class ApplicationComponents:
     road_vision_service: RoadVisionService
     item_vision_service: ItemVisionService
     parent_snapshot_service: ParentSnapshotService
+
+
+class _UnavailableTmapClient:
+    """Keep existing missions available when TMAP credentials are absent."""
+
+    async def get_round_trip(self, *_args: Any, **_kwargs: Any) -> Any:
+        raise TmapUnavailable
+
+
+class _UnavailableVisionClient:
+    """Route missing OpenAI credentials through services' conservative fallback path."""
+
+    async def analyze_road(self, _image: bytes) -> Any:
+        raise VisionUnavailable
+
+    async def analyze_product(self, _image: bytes, **_kwargs: Any) -> Any:
+        raise VisionUnavailable
 
 
 def assemble_components(
@@ -76,21 +94,32 @@ def assemble_components(
 
 def _build_production_components(settings: Settings) -> ApplicationComponents:
     """Build runtime adapters lazily so imports and health checks never require secrets or a DB."""
-    settings.require()
+    settings.require("DATABASE_URL")
     database_url = settings.database_url
-    openai_api_key = settings.openai_api_key
-    if database_url is None or openai_api_key is None:
-        raise AssertionError("validated required settings are missing")
+    if database_url is None:
+        raise AssertionError("validated DATABASE_URL is missing")
 
     engine = create_neon_engine(database_url.get_secret_value())
+    tmap_client: Any
+    if settings.tmap_app_key is None or not settings.tmap_app_key.get_secret_value().strip():
+        tmap_client = _UnavailableTmapClient()
+    else:
+        tmap_client = TmapClient.from_settings(settings)
+
+    vision_client: Any
+    if settings.openai_api_key is None or not settings.openai_api_key.get_secret_value().strip():
+        vision_client = _UnavailableVisionClient()
+    else:
+        vision_client = OpenAIVisionClient(
+            model=settings.openai_vision_model,
+            api_key=settings.openai_api_key.get_secret_value(),
+        )
+
     components = assemble_components(
         settings=settings,
         engine=engine,
-        tmap_client=TmapClient.from_settings(settings),
-        vision_client=OpenAIVisionClient(
-            model=settings.openai_vision_model,
-            api_key=openai_api_key.get_secret_value(),
-        ),
+        tmap_client=tmap_client,
+        vision_client=vision_client,
     )
     # Lambda disables ASGI lifespan.  The controlled demo opts in explicitly, while production
     # schema ownership remains outside request handling and therefore has no hidden side effect.
