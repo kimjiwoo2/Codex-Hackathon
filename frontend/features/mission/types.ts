@@ -28,3 +28,8 @@ export type CreateMissionResult = {
   joinCodeExpiresAt: string;
   parentToken: string;
 };
+
+export type JoinMissionResult = {
+  mission: MissionSnapshot;
+  childToken: string;
+};
