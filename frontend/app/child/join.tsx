@@ -8,13 +8,15 @@ import { Screen } from '@/components/ican/screen';
 import { TopBar } from '@/components/ican/top-bar';
 import { ICanColors } from '@/constants/ican-theme';
 import { useChildJourney } from '@/features/child/child-journey-context';
-import { missionAdapter } from '@/services/mission-adapter';
+import { useChildMission } from '@/features/mission/child-mission-context';
+import { ChildApiError, joinMission } from '@/services/child-mission-api';
 
 export default function ChildJoinScreen() {
   const [joinCode, setJoinCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { reset } = useChildJourney();
+  const { setSession } = useChildMission();
 
   const submit = async () => {
     if (joinCode.length !== 6) {
@@ -25,11 +27,12 @@ export default function ChildJoinScreen() {
     setLoading(true);
     setError('');
     try {
-      await missionAdapter.joinMission(joinCode);
+      const session = await joinMission(joinCode);
+      setSession(session);
       reset();
       router.replace('/child');
-    } catch {
-      setError('코드를 다시 확인해 주세요. 데모 코드는 482913이에요.');
+    } catch (cause) {
+      setError(cause instanceof ChildApiError ? cause.message : '코드를 다시 확인해 주세요.');
     } finally {
       setLoading(false);
     }
@@ -69,7 +72,7 @@ export default function ChildJoinScreen() {
 
           <View style={styles.demoNotice}>
             <Ionicons color={ICanColors.greenDark} name="information-circle" size={18} />
-            <Text style={styles.demoNoticeText}>현재 데모 참여 코드: 482913</Text>
+            <Text style={styles.demoNoticeText}>보호자에게 받은 참여 코드를 입력해요.</Text>
           </View>
         </View>
         <View style={styles.buttonWrap}>
