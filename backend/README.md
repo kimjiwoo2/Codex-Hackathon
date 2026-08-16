@@ -13,10 +13,11 @@
 ```bash
 cd backend
 uv sync --all-groups
-uv run uvicorn app.main:app --reload
+uv run uvicorn --app-dir src --env-file .env app.main:app --reload
 ```
 
 서버는 기본적으로 `http://127.0.0.1:8000`에서 실행됩니다. 대화형 API 문서는 `/docs`에서 확인할 수 있습니다.
+`--app-dir src`는 `src` layout의 `app` 패키지를 import 경로에 추가합니다.
 
 ## 환경 변수
 
@@ -25,6 +26,11 @@ uv run uvicorn app.main:app --reload
 ```bash
 cp .env.example .env
 ```
+
+`Settings`는 의도적으로 `env_file=None`이므로 `.env`를 직접 읽지 않습니다. 위의 Uvicorn
+명령은 `--env-file .env`로 값을 process environment에 주입합니다. `.env`를 사용하지 않는
+로컬 셸과 AWS Lambda는 동일한 이름의 환경 변수를 직접 주입해야 하며, 값이 들어 있는 파일을
+저장소·로그·issue·PR에 남기지 않습니다.
 
 | 키 | 용도 |
 | --- | --- |
@@ -65,7 +71,7 @@ uv run ruff check .               # 린트
 uv run pytest                     # 테스트
 uv run pytest tests/unit          # 단위 테스트
 uv run pytest tests/integration   # 통합 테스트
-uv run uvicorn app.main:app --reload  # 로컬 서버
+uv run uvicorn --app-dir src --env-file .env app.main:app --reload  # 로컬 서버
 uv lock                           # 잠금 파일 갱신
 ```
 
