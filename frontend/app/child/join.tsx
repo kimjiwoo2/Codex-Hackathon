@@ -8,13 +8,16 @@ import { Screen } from '@/components/ican/screen';
 import { TopBar } from '@/components/ican/top-bar';
 import { ICanColors } from '@/constants/ican-theme';
 import { useChildJourney } from '@/features/child/child-journey-context';
-import { missionAdapter } from '@/services/mission-adapter';
+import { getJoinCodeErrorMessage } from '@/features/mission/presentation';
+import { useMissionDraft } from '@/features/mission/mission-draft-context';
+import { MissionAdapterError, missionAdapter } from '@/services/mission-adapter';
 
 export default function ChildJoinScreen() {
   const [joinCode, setJoinCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { reset } = useChildJourney();
+  const { setJoinResult } = useMissionDraft();
 
   const submit = async () => {
     if (joinCode.length !== 6) {
@@ -25,11 +28,15 @@ export default function ChildJoinScreen() {
     setLoading(true);
     setError('');
     try {
-      await missionAdapter.joinMission(joinCode);
+      setJoinResult(await missionAdapter.joinMission(joinCode));
       reset();
       router.replace('/child');
-    } catch {
-      setError('코드를 다시 확인해 주세요. 데모 코드는 482913이에요.');
+    } catch (caught) {
+      setError(
+        caught instanceof MissionAdapterError
+          ? getJoinCodeErrorMessage(caught.code)
+          : '심부름에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.',
+      );
     } finally {
       setLoading(false);
     }
@@ -46,7 +53,7 @@ export default function ChildJoinScreen() {
             <Ionicons color={ICanColors.yellowStrong} name="keypad" size={46} />
           </View>
           <Text style={styles.title}>부모님이 알려준 코드를 입력해요</Text>
-          <Text style={styles.description}>6자리 코드를 입력하면{`\n`}이준이의 심부름이 시작돼요.</Text>
+          <Text style={styles.description}>6자리 코드를 입력하면{`\n`}심부름 길안내가 시작돼요.</Text>
 
           <TextInput
             accessibilityLabel="6자리 참여 코드"
@@ -67,10 +74,6 @@ export default function ChildJoinScreen() {
           <Text style={styles.counter}>{joinCode.length} / 6</Text>
           {error ? <Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text> : null}
 
-          <View style={styles.demoNotice}>
-            <Ionicons color={ICanColors.greenDark} name="information-circle" size={18} />
-            <Text style={styles.demoNoticeText}>현재 데모 참여 코드: 482913</Text>
-          </View>
         </View>
         <View style={styles.buttonWrap}>
           <PrimaryButton label="심부름 시작하기" loading={loading} onPress={submit} />
@@ -111,15 +114,5 @@ const styles = StyleSheet.create({
   inputError: { borderColor: '#EB5757' },
   counter: { alignSelf: 'flex-end', color: ICanColors.subtle, fontSize: 12, marginTop: 7 },
   error: { color: '#D74646', fontSize: 13, marginTop: 10, textAlign: 'center' },
-  demoNotice: {
-    alignItems: 'center',
-    backgroundColor: ICanColors.paleGreen,
-    borderRadius: 10,
-    flexDirection: 'row',
-    marginTop: 24,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  demoNoticeText: { color: ICanColors.greenDark, fontSize: 13, fontWeight: '600', marginLeft: 6 },
   buttonWrap: { paddingBottom: 28, paddingHorizontal: 24 },
 });

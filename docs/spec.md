@@ -30,7 +30,7 @@
 
 | 사용자 | 상황 | 기대 결과 |
 | --- | --- | --- |
-| 부모 | 집·마트 좌표와 상품을 등록 | `missionId`, 6자리 `joinCode`, `parentToken` 수신 |
+| 부모 | 집·마트 좌표와 상품을 등록 | `missionId`, 6자리 `joinCode`, `joinCodeExpiresAt`, `parentToken` 수신 |
 | 아이 | 코드로 참여하고 이동 | `childToken` 수신 후 2~3초 위치 업데이트마다 음성 안내 수신 |
 | 아이 | 카메라로 도로 상황을 비춤 | `STOP | CAUTION | UNKNOWN` 중 하나와 고정 안전 문구 수신 |
 | 아이 | 마트에서 상품을 비춤 | `MATCH | SIMILAR | MISMATCH | UNKNOWN` 판정 수신 |
@@ -82,6 +82,8 @@ GET  /missions/{missionId}/snapshot?afterEventId={cursor}
 `return-home`은 `parentToken`만 호출할 수 있다. 아이 토큰은 위치·도로·상품 확인만 전송하며,
 아이가 직접 귀가 명령 API를 호출한다고 가정하지 않는다. 모든 상품이 `MATCH`인 경우에는 서버가
 상품 확인 결과로 귀가 상태를 시작할 수 있다.
+
+`POST /missions`의 `joinCodeExpiresAt`은 서버의 `MISSION_JOIN_CODE_TTL_MINUTES` 설정으로 계산한 ISO 8601 시각이다. 참여 코드는 서버가 단일 source of truth로 검증하며, 이미 사용됨(`JOIN_CODE_ALREADY_USED`), 만료됨(`JOIN_CODE_EXPIRED`), 존재하지 않음(`JOIN_CODE_INVALID`)을 서로 다른 오류 코드로 응답한다. 모든 오류는 `{ "error": { "code": "...", "message": "..." } }` 형식을 따른다.
 
 데이터는 `missions`, `mission_items`, `mission_events` 세 테이블로 제한한다. 세부 schema, 파일 소유권, 테스트 기준은 [`backend-parallel-implementation-plan.md`](backend-parallel-implementation-plan.md)를 따른다.
 

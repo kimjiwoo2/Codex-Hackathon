@@ -59,8 +59,8 @@ flowchart LR
 1. 부모가 집·마트 좌표와 상품 목록을 전송한다.
 2. backend가 TMAP에서 집→마트와 마트→집 보행 경로를 조회한다.
 3. 왕복 경로 JSON과 token hash를 Neon에 저장한다.
-4. 부모에게 `missionId`, 6자리 `joinCode`, `parentToken`을 반환한다.
-5. 아이가 코드로 참여하면 코드를 소비하고 `childToken`, `GOING`, 첫 안내를 반환한다.
+4. 부모에게 `missionId`, 6자리 `joinCode`, 서버 설정으로 계산한 `joinCodeExpiresAt`, `parentToken`을 반환한다.
+5. 아이가 코드로 참여하면 서버가 해당 만료 시각을 기준으로 코드를 소비하고 `childToken`, `GOING`, 첫 안내를 반환한다. 존재하지 않음, 만료됨, 이미 사용됨은 각각 `JOIN_CODE_INVALID`, `JOIN_CODE_EXPIRED`, `JOIN_CODE_ALREADY_USED` 오류로 구분한다.
 
 ### 이동
 

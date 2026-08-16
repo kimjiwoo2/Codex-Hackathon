@@ -9,6 +9,7 @@ from app.db.base import Base
 from app.db.session import create_session_factory
 from app.models import (
     ItemVerdict,
+    JoinCodeStatus,
     Mission,
     MissionEventType,
     MissionItem,
@@ -371,11 +372,13 @@ def test_join_code_is_resolved_then_consumed_once(repository) -> None:
     verifier = MissionJoinCodeVerifier(mission_repository)
 
     assert verifier.find_mission_id(join_code) == aggregate.mission.id
+    assert mission_repository.resolve_join_code(join_code).status is JoinCodeStatus.ACTIVE
     assert mission_repository.consume_join_code(
         aggregate.mission.id,
         child_token_hash=hash_opaque_token(child_token),
     )
     assert verifier.find_mission_id(join_code) is None
+    assert mission_repository.resolve_join_code(join_code).status is JoinCodeStatus.ALREADY_USED
     assert not mission_repository.consume_join_code(
         aggregate.mission.id,
         child_token_hash=hash_opaque_token(generate_opaque_token()),
@@ -384,8 +387,8 @@ def test_join_code_is_resolved_then_consumed_once(repository) -> None:
     mission = mission_repository.get_mission(aggregate.mission.id)
     assert mission is not None
     assert mission.status is MissionStatus.GOING
-    assert mission.join_code_hash is None
-    assert mission.join_code_expires_at is None
+    assert mission.join_code_hash is not None
+    assert mission.join_code_expires_at is not None
 
 
 def test_active_join_code_collision_is_rejected(repository) -> None:
@@ -452,6 +455,7 @@ def test_expired_join_code_can_be_reused(repository) -> None:
         assert mission is not None
         mission.join_code_expires_at = datetime.now(UTC) - timedelta(seconds=1)
 
+    assert mission_repository.resolve_join_code(join_code).status is JoinCodeStatus.EXPIRED
     replacement = mission_repository.create_mission(
         MissionSeed(
             home_lat=37.55,
@@ -468,6 +472,12 @@ def test_expired_join_code_can_be_reused(repository) -> None:
     )
 
     assert replacement.mission.id != aggregate.mission.id
+
+
+def test_unknown_join_code_resolves_as_invalid(repository) -> None:
+    mission_repository, _ = repository
+
+    assert mission_repository.resolve_join_code("654321").status is JoinCodeStatus.INVALID
 
 
 def test_events_after_cursor_are_returned_in_ascending_order(repository) -> None:

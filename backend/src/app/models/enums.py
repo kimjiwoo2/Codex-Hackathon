@@ -41,3 +41,10 @@ class MissionEventType(StrEnum):
     RETURNING = "RETURNING"
     COMPLETED = "COMPLETED"
     LOCATION_STALE = "LOCATION_STALE"
+
+
+class JoinCodeStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    INVALID = "INVALID"
+    EXPIRED = "EXPIRED"
+    ALREADY_USED = "ALREADY_USED"

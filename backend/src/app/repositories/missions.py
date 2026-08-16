@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, selectinload, sessionmaker
 
 from app.models import (
     ItemVerdict,
+    JoinCodeStatus,
     Mission,
     MissionEvent,
     MissionEventType,
@@ -83,6 +84,12 @@ class ItemVerification:
 class SecretHashCandidate:
     mission_id: str
     encoded_hash: str
+
+
+@dataclass(frozen=True, slots=True)
+class JoinCodeResolution:
+    status: JoinCodeStatus
+    mission_id: str | None = None
 
 
 class MissionNotFoundError(LookupError):
@@ -208,18 +215,55 @@ class MissionRepository:
                 Mission.id == mission_id,
                 Mission.status == MissionStatus.WAITING,
                 Mission.join_code_hash.is_not(None),
-                Mission.join_code_expires_at >= checked_at,
+                Mission.join_code_expires_at > checked_at,
             )
             .values(
                 child_token_hash=child_token_hash,
-                join_code_hash=None,
-                join_code_expires_at=None,
                 status=MissionStatus.GOING,
             )
         )
         with self._sessions.begin() as session:
             result = session.execute(statement)
             return result.rowcount == 1
+
+    def resolve_join_code(
+        self,
+        join_code: str,
+        *,
+        now: datetime | None = None,
+    ) -> JoinCodeResolution:
+        if len(join_code) != 6 or not join_code.isdigit():
+            return JoinCodeResolution(status=JoinCodeStatus.INVALID)
+
+        checked_at = _as_utc(now or datetime.now(UTC))
+        statement = select(
+            Mission.id,
+            Mission.status,
+            Mission.child_token_hash,
+            Mission.join_code_hash,
+            Mission.join_code_expires_at,
+        ).where(Mission.join_code_hash.is_not(None))
+        with self._sessions() as session:
+            for mission_id, status, child_token_hash, encoded_hash, expires_at in session.execute(
+                statement
+            ):
+                if not verify_join_code(join_code, encoded_hash):
+                    continue
+                if status is not MissionStatus.WAITING or child_token_hash is not None:
+                    return JoinCodeResolution(
+                        status=JoinCodeStatus.ALREADY_USED,
+                        mission_id=mission_id,
+                    )
+                if expires_at is None or expires_at <= checked_at:
+                    return JoinCodeResolution(
+                        status=JoinCodeStatus.EXPIRED,
+                        mission_id=mission_id,
+                    )
+                return JoinCodeResolution(
+                    status=JoinCodeStatus.ACTIVE,
+                    mission_id=mission_id,
+                )
+        return JoinCodeResolution(status=JoinCodeStatus.INVALID)
 
     def update_location(self, mission_id: str, location: LocationUpdate) -> Mission | None:
         with self._sessions.begin() as session:
@@ -390,7 +434,7 @@ class MissionRepository:
         statement = select(Mission.id, Mission.join_code_hash).where(
             Mission.status == MissionStatus.WAITING,
             Mission.join_code_hash.is_not(None),
-            Mission.join_code_expires_at >= checked_at,
+            Mission.join_code_expires_at > checked_at,
         )
         with self._sessions() as session:
             return tuple(

@@ -39,6 +39,17 @@ CROSSWALK = Coordinate(latitude=37.0005, longitude=127.0)
 STORE = Coordinate(latitude=37.001, longitude=127.0)
 
 
+class FakeClock:
+    def __init__(self, current: datetime) -> None:
+        self.current = current
+
+    def __call__(self) -> datetime:
+        return self.current
+
+    def advance(self, *, minutes: int = 0, seconds: int = 0) -> None:
+        self.current += timedelta(minutes=minutes, seconds=seconds)
+
+
 @dataclass
 class TmapDouble:
     routes: RoundTripRoutes
@@ -159,7 +170,12 @@ def _routes() -> RoundTripRoutes:
     return RoundTripRoutes(outbound=outbound, returning=returning)
 
 
-def _components(vision: VisionDouble) -> tuple[ApplicationComponents, TmapDouble]:
+def _components(
+    vision: VisionDouble,
+    *,
+    clock: FakeClock | None = None,
+    ttl_minutes: int = 180,
+) -> tuple[ApplicationComponents, TmapDouble]:
     engine: Engine = create_engine(
         "sqlite+pysqlite://",
         connect_args={"check_same_thread": False},
@@ -168,10 +184,11 @@ def _components(vision: VisionDouble) -> tuple[ApplicationComponents, TmapDouble
     Base.metadata.create_all(engine)
     tmap = TmapDouble(_routes())
     return assemble_components(
-        settings=Settings(app_env="test"),
+        settings=Settings(app_env="test", mission_join_code_ttl_minutes=ttl_minutes),
         engine=engine,
         tmap_client=tmap,
         vision_client=vision,
+        clock=clock,
     ), tmap
 
 
@@ -230,6 +247,7 @@ async def test_real_fastapi_trace_keeps_child_parent_and_backend_state_in_sync(
         assert created.status_code == 201
         mission = created.json()
         assert len(mission["joinCode"]) == 6
+        assert mission["joinCodeExpiresAt"]
 
         parent_headers = {"Authorization": f"Bearer {mission['parentToken']}"}
         waiting_snapshot = await client.get(
@@ -539,3 +557,61 @@ async def test_production_assembly_degrades_missing_external_keys_per_endpoint(
     assert road.status_code == 200
     assert road.json()["result"] == "UNKNOWN"
     assert snapshot.status_code == 200
+
+
+@pytest.mark.anyio
+async def test_join_distinguishes_expired_and_already_used_codes_with_fake_clock(
+    composed_app_factory: Callable[[ApplicationComponents], FastAPI],
+) -> None:
+    clock = FakeClock(datetime(2026, 8, 16, 12, 0, tzinfo=UTC))
+    components, _ = _components(VisionDouble(), clock=clock, ttl_minutes=5)
+    app = composed_app_factory(components)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app, raise_app_exceptions=False), base_url="http://test"
+    ) as client:
+        created = await client.post(
+            "/missions",
+            json={
+                "home": HOME.model_dump(),
+                "store": STORE.model_dump(),
+                "items": [{"name": "우유"}],
+            },
+        )
+        assert created.status_code == 201
+        mission = created.json()
+        assert mission["joinCodeExpiresAt"] == "2026-08-16T12:05:00+00:00"
+
+        clock.advance(minutes=5, seconds=1)
+        expired = await client.post("/missions/join", json={"joinCode": mission["joinCode"]})
+        assert expired.status_code == 410
+        assert expired.json() == {
+            "error": {
+                "code": "JOIN_CODE_EXPIRED",
+                "message": "만료된 참여 코드입니다. 새 코드를 받아 주세요.",
+            }
+        }
+
+        second_created = await client.post(
+            "/missions",
+            json={
+                "home": HOME.model_dump(),
+                "store": STORE.model_dump(),
+                "items": [{"name": "우유"}],
+            },
+        )
+        assert second_created.status_code == 201
+        second_mission = second_created.json()
+
+        joined = await client.post("/missions/join", json={"joinCode": second_mission["joinCode"]})
+        assert joined.status_code == 200
+        already_used = await client.post(
+            "/missions/join", json={"joinCode": second_mission["joinCode"]}
+        )
+        assert already_used.status_code == 409
+        assert already_used.json() == {
+            "error": {
+                "code": "JOIN_CODE_ALREADY_USED",
+                "message": "이미 사용된 참여 코드입니다.",
+            }
+        }

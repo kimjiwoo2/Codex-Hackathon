@@ -8,18 +8,24 @@ import { PrimaryButton } from '@/components/ican/primary-button';
 import { Screen } from '@/components/ican/screen';
 import { TopBar } from '@/components/ican/top-bar';
 import { ICanColors } from '@/constants/ican-theme';
+import { getJoinCodeErrorMessage } from '@/features/mission/presentation';
 import { useMissionDraft } from '@/features/mission/mission-draft-context';
-import { missionAdapter } from '@/services/mission-adapter';
+import { MissionAdapterError, missionAdapter } from '@/services/mission-adapter';
 
 export default function ConfirmScreen() {
-  const { draft, setResult } = useMissionDraft();
+  const { draft, setCreateResult } = useMissionDraft();
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const createMission = async () => {
     setLoading(true);
     try {
-      setResult(await missionAdapter.createMission(draft));
+      setErrorMessage(null);
+      setCreateResult(await missionAdapter.createMission(draft));
       router.replace('/parent/code');
+    } catch (error) {
+      const message = error instanceof MissionAdapterError ? getJoinCodeErrorMessage(error.code) : '심부름을 만들지 못했어요.';
+      setErrorMessage(message);
     } finally {
       setLoading(false);
     }
@@ -43,6 +49,7 @@ export default function ConfirmScreen() {
           <Ionicons color={ICanColors.green} name="information-circle" size={21} />
           <Text style={styles.settingLabel}>위치 공유와 경로 이탈 알림은 현재 모든 미션에 적용됩니다.</Text>
         </View>
+        {errorMessage ? <Text style={styles.errorMessage}>{errorMessage}</Text> : null}
         <PrimaryButton label="심부름 시작" loading={loading} onPress={createMission} />
       </View>
       <BottomNav active="create" />
@@ -62,4 +69,5 @@ const styles = StyleSheet.create({
   timeMascot: { height: 43, marginLeft: 'auto', width: 55 },
   settingsCard: { alignItems: 'center', backgroundColor: ICanColors.canvas, borderRadius: 10, flexDirection: 'row', marginVertical: 7, minHeight: 54, paddingHorizontal: 15 },
   settingLabel: { color: ICanColors.green, flex: 1, fontSize: 14, fontWeight: '600', marginLeft: 10 },
+  errorMessage: { color: '#C15C50', fontSize: 13, fontWeight: '600', lineHeight: 19, paddingHorizontal: 4 },
 });

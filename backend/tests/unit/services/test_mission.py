@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from app.core.errors import AppError
-from app.models import MissionStatus, RouteKind
-from app.repositories.missions import MissionAggregate
+from app.models import JoinCodeStatus, MissionStatus, RouteKind
+from app.repositories.missions import JoinCodeResolution, MissionAggregate
 from app.schemas.mission import CreateMissionRequest, JoinMissionRequest
 from app.schemas.navigation.route import (
     Coordinate,
@@ -83,6 +83,7 @@ async def test_create_fetches_and_persists_round_trip_routes() -> None:
 
     assert response.mission_id == "mission-1"
     assert len(response.join_code) == 6
+    assert response.join_code_expires_at
     assert response.parent_token
     tmap.get_round_trip.assert_awaited_once()
     seed = repository.create_mission.call_args.args[0]
@@ -117,21 +118,49 @@ async def test_create_preserves_first_actionable_crosswalk_as_initial_step() -> 
 
 def test_join_consumes_code_once_and_returns_first_instruction() -> None:
     repository = Mock()
+    repository.resolve_join_code.return_value = JoinCodeResolution(
+        status=JoinCodeStatus.ACTIVE,
+        mission_id="mission-1",
+    )
     repository.consume_join_code.return_value = True
-    repository.get_mission.return_value = type("Mission", (), {"current_step_kind": "UNKNOWN"})()
     service = MissionService(
         repository=repository, tmap_client=AsyncMock(), join_code_ttl_minutes=30
     )
-    service._join_code_verifier = type(
-        "Verifier", (), {"find_mission_id": lambda *_: "mission-1"}
-    )()
 
     response = service.join(JoinMissionRequest(join_code="123456"))
 
     assert response.status is MissionStatus.GOING
     assert response.instruction_code == "START_OUTBOUND"
     assert response.child_token
+    repository.resolve_join_code.assert_called_once()
     repository.consume_join_code.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    ("status", "code", "status_code"),
+    [
+        (JoinCodeStatus.INVALID, "JOIN_CODE_INVALID", 404),
+        (JoinCodeStatus.EXPIRED, "JOIN_CODE_EXPIRED", 410),
+        (JoinCodeStatus.ALREADY_USED, "JOIN_CODE_ALREADY_USED", 409),
+    ],
+)
+def test_join_surfaces_distinct_join_code_failures(
+    status: JoinCodeStatus,
+    code: str,
+    status_code: int,
+) -> None:
+    repository = Mock()
+    repository.resolve_join_code.return_value = JoinCodeResolution(status=status)
+    service = MissionService(
+        repository=repository, tmap_client=AsyncMock(), join_code_ttl_minutes=30
+    )
+
+    with pytest.raises(AppError) as error:
+        service.join(JoinMissionRequest(join_code="123456"))
+
+    assert error.value.code == code
+    assert error.value.status_code == status_code
+    repository.consume_join_code.assert_not_called()
 
 
 def test_return_home_allows_going_and_preserves_outbound_progress_for_retrace() -> None:

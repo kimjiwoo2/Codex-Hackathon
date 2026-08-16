@@ -1,5 +1,6 @@
 from app.models.enums import (
     ItemVerdict,
+    JoinCodeStatus,
     MissionEventType,
     MissionStatus,
     RouteKind,
@@ -9,6 +10,7 @@ from app.models.mission import Mission, MissionEvent, MissionItem
 
 __all__ = [
     "ItemVerdict",
+    "JoinCodeStatus",
     "Mission",
     "MissionEvent",
     "MissionEventType",

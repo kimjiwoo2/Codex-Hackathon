@@ -11,7 +11,10 @@ from app.schemas.mission import CreateMissionResponse, JoinMissionResponse, Retu
 class _Service:
     async def create(self, _request):
         return CreateMissionResponse(
-            mission_id="mission-1", join_code="123456", parent_token="a" * 43
+            mission_id="mission-1",
+            join_code="123456",
+            join_code_expires_at="2026-08-16T12:30:00+00:00",
+            parent_token="a" * 43,
         )
 
     def join(self, _request):
@@ -72,4 +75,5 @@ def test_create_and_join_are_public_but_return_requires_parent() -> None:
     assert joined.status_code == 200
     assert forbidden.status_code == 403
     assert returned.status_code == 200
+    assert created.json()["joinCodeExpiresAt"] == "2026-08-16T12:30:00+00:00"
     assert returned.json()["returnStrategy"] == "RETRACE_OUTBOUND_FROM_PROGRESS"

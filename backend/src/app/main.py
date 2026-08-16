@@ -1,6 +1,7 @@
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from threading import Lock
-from typing import Any
+from typing import Any, Callable
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -67,6 +68,7 @@ def assemble_components(
     engine: Engine,
     tmap_client: Any,
     vision_client: Any,
+    clock: Callable[[], datetime] | None = None,
 ) -> ApplicationComponents:
     """Compose concrete services once; tests may supply SQLite and typed adapter doubles."""
     session_factory = create_session_factory(engine)
@@ -75,6 +77,7 @@ def assemble_components(
         repository=repository,
         tmap_client=tmap_client,
         join_code_ttl_minutes=settings.mission_join_code_ttl_minutes,
+        clock=clock or (lambda: datetime.now(UTC)),
     )
     return ApplicationComponents(
         settings=settings,
