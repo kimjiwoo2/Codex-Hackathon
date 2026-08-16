@@ -32,11 +32,12 @@ export default function ChildHomeScreen() {
   const { advance, setStage, stage } = useChildJourney();
   const { location, retry: retryLocation, status: locationStatus } = useChildLocation();
   const { selectedItem, session, updateStatus } = useChildMission();
-  const { draft } = useMissionDraft();
+  const { createResult, draft } = useMissionDraft();
   const initialMissionRef = useRef<string>('');
   const lastGuidanceKeyRef = useRef<string>('');
   const lastLocationKeyRef = useRef<string>('');
   const inFlightRef = useRef(false);
+  const demoFallbackEnabled = __DEV__ && createResult?.missionId === session?.missionId;
 
   const applyGuidance = useCallback((response: ChildLocationUpdateResult) => {
     updateStatus(response.status);
@@ -99,6 +100,7 @@ export default function ChildHomeScreen() {
       advance();
       return;
     }
+    if (!demoFallbackEnabled) return;
 
     inFlightRef.current = true;
     try {
@@ -139,6 +141,7 @@ export default function ChildHomeScreen() {
         <ChildLocationStatus onRetry={retryLocation} status={locationStatus} />
         <JourneyHeadline stage={stage} />
         <ChildMissionCard
+          demoFallbackEnabled={demoFallbackEnabled}
           onAdvance={() => void advanceWithDemoLocation()}
           onOpenCamera={() => {
             setStage('ARRIVED');

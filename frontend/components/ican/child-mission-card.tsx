@@ -14,12 +14,14 @@ export function ChildMissionCard({
   stage,
   onAdvance,
   onOpenCamera,
+  demoFallbackEnabled = false,
   itemDetails = '서울 우유 1L',
   itemName = '우유 1개',
 }: {
   stage: ChildJourneyStage;
   onAdvance?: () => void;
   onOpenCamera?: () => void;
+  demoFallbackEnabled?: boolean;
   itemDetails?: string;
   itemName?: string;
 }) {
@@ -50,7 +52,7 @@ export function ChildMissionCard({
         accessibilityHint="GPS 이동에 따라 자동으로 바뀌며, 데모에서는 눌러서 다음 단계로 이동할 수 있습니다"
         accessibilityLabel="지도에서 다음 길 안내 보기"
         accessibilityRole="button"
-        disabled={arrived}
+        disabled={arrived || (returning && !demoFallbackEnabled)}
         onPress={onAdvance}
         style={[styles.mapWrap, arrived && styles.arrivedMap]}>
         <Image resizeMode="cover" source={require('../../assets/ican/route-summary.png')} style={styles.map} />
@@ -64,7 +66,7 @@ export function ChildMissionCard({
             <Ionicons color="rgba(255,84,93,0.76)" name="warning" size={154} />
           </View>
         )}
-        {!arrived && (
+        {!arrived && (!returning || demoFallbackEnabled) && (
           <View pointerEvents="none" style={styles.mapHint}>
             <Ionicons color={ICanColors.paper} name="navigate" size={18} />
             <Text style={styles.mapHintText}>
