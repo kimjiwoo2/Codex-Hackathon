@@ -33,6 +33,7 @@ android/
 .metro-health-check*
 
 # Tool caches
+.omx/
 .cache/
 .pytest_cache/
 .mypy_cache/

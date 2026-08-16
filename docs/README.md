@@ -6,6 +6,7 @@
 | --- | --- | --- |
 | [`spec.md`](spec.md) | 목표, 사용자, 범위, 완료 조건 | 요구사항 변경 시 |
 | [`architecture.md`](architecture.md) | 시스템 경계, 데이터 흐름, 품질 속성 | 구조 변경 시 |
+| [`backend-parallel-implementation-plan.md`](backend-parallel-implementation-plan.md) | 병렬 구현 순서, 이슈 분해, 세션 작업 규칙 | 구현 착수 전/범위 조정 시 |
 | [`decisions/`](decisions/README.md) | 주요 의사결정과 근거(ADR) | 중요한 결정 확정 시 |
 | [`conventions/development.md`](conventions/development.md) | 공통 개발·검증 규칙 | 개발 방식 변경 시 |
 | [`conventions/git.md`](conventions/git.md) | 브랜치, 커밋, PR 규칙 | 협업 방식 변경 시 |
