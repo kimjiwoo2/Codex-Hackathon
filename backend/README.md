@@ -23,8 +23,25 @@ uv run uvicorn app.main:app --reload
 uv run ruff format .              # 코드 포맷
 uv run ruff check .               # 린트
 uv run pytest                     # 테스트
+uv run pytest tests/unit          # 단위 테스트
+uv run pytest tests/integration   # 통합 테스트
 uv run uvicorn app.main:app --reload  # 로컬 서버
 ```
+
+## 구조
+
+```text
+src/app/
+├── api/           # HTTP 라우트와 라우터 조합
+├── schemas/       # API 요청·응답 모델
+├── repositories/  # 향후 DB·외부 저장소 어댑터
+└── main.py        # FastAPI 애플리케이션 조립
+tests/
+├── unit/          # 네트워크·DB 없이 실행하는 규칙 및 스키마 테스트
+└── integration/   # 애플리케이션 경계를 통과하는 API 테스트
+```
+
+`repositories/`는 향후 데이터베이스 또는 외부 저장소가 도입될 때 구현을 추가할 경계입니다. 현재는 저장소가 없으므로 연결 설정이나 가짜 구현을 만들지 않습니다.
 
 ## API 계약
 
