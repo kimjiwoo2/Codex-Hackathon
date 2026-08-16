@@ -12,6 +12,7 @@ MAX_UNZIPPED_BYTES = 250 * 1024 * 1024
 REQUIRED_ENTRIES = (
     "app/__init__.py",
     "app/lambda_handler.py",
+    "httpx/__init__.py",
     "mangum/__init__.py",
     "openai/__init__.py",
     "psycopg/__init__.py",

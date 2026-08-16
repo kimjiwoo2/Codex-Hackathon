@@ -1,5 +1,8 @@
 from typing import Any
 
+import httpx
+import openai
+import psycopg
 from mangum import Mangum
 
 from app.main import app
@@ -39,6 +42,12 @@ def test_lambda_handler_wraps_application() -> None:
 
     assert isinstance(handler, Mangum)
     assert handler.app is app
+
+
+def test_lambda_runtime_dependencies_import() -> None:
+    assert httpx.__name__ == "httpx"
+    assert openai.__name__ == "openai"
+    assert psycopg.__name__ == "psycopg"
 
 
 def test_function_url_health_request() -> None:

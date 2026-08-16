@@ -15,7 +15,7 @@ uv run --frozen --project "${backend_dir}" python \
   "${script_dir}/validate_lambda_zip.py" "${archive_path}"
 uv run --frozen --project "${backend_dir}" python -m zipfile -e "${archive_path}" "${smoke_root}"
 
-smoke_code='import app, mangum, openai, psycopg; from app.lambda_handler import handler; print("LAMBDA_IMPORT_SMOKE=ok"); print(f"HANDLER_TYPE={type(handler).__name__}")'
+smoke_code='import app, httpx, mangum, openai, psycopg; from app.lambda_handler import handler; print("LAMBDA_IMPORT_SMOKE=ok"); print(f"HANDLER_TYPE={type(handler).__name__}")'
 
 if [[ "$(uname -s)" == "Linux" && "$(uname -m)" == "x86_64" ]] && command -v python3.12 >/dev/null 2>&1; then
   PYTHONPATH="${smoke_root}" python3.12 -c "${smoke_code}"
