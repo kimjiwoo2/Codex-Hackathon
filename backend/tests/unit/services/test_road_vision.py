@@ -4,6 +4,7 @@ from unittest.mock import ANY, AsyncMock, Mock
 
 import pytest
 
+from app.integrations.openai.client import VisionUnavailable
 from app.models import MissionEventType, RouteStepKind
 from app.schemas.vision.common import RoadVisionAnalysis, RoadVisionResult
 from app.services.road_vision import RoadVisionBusyError, RoadVisionService
@@ -79,16 +80,31 @@ async def test_busy_lease_does_not_call_vision_adapter() -> None:
 
 
 @pytest.mark.anyio
-async def test_lease_is_released_when_vision_fails_and_event_is_deduplicated() -> None:
+async def test_vision_unavailable_becomes_unknown_and_releases_lease() -> None:
+    now = datetime.now(UTC)
+    service, repository, client = _service(mission=_mission())
+    client.analyze_road.side_effect = VisionUnavailable()
+
+    result = await service.evaluate("mission-1", b"jpeg", now, now=now)
+
+    assert result.result is RoadVisionResult.UNKNOWN
+    repository.append_event.assert_called_once_with(
+        "mission-1", MissionEventType.VISION_UNAVAILABLE, {"result": "UNKNOWN"}, created_at=ANY
+    )
+    repository.release_road_vision_lease.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_unexpected_vision_error_propagates_and_releases_lease() -> None:
     now = datetime.now(UTC)
     service, repository, client = _service(
         mission=_mission(last_event_at=now - timedelta(seconds=10))
     )
     client.analyze_road.side_effect = RuntimeError("adapter failure")
 
-    result = await service.evaluate("mission-1", b"jpeg", now, now=now)
+    with pytest.raises(RuntimeError, match="adapter failure"):
+        await service.evaluate("mission-1", b"jpeg", now, now=now)
 
-    assert result.result is RoadVisionResult.UNKNOWN
     repository.append_event.assert_not_called()
     repository.set_last_road_event_at.assert_not_called()
     repository.release_road_vision_lease.assert_called_once()

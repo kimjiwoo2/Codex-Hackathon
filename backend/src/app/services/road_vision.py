@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
+from app.integrations.openai.client import VisionUnavailable
 from app.models import MissionEventType, RouteStepKind
 from app.schemas.vision.common import RoadVisionResult
 
@@ -96,7 +97,7 @@ class RoadVisionService:
             try:
                 analysis = await self._vision_client.analyze_road(image)
                 result = _clamp_result(getattr(analysis, "result", None))
-            except Exception:
+            except VisionUnavailable:
                 result = RoadVisionResult.UNKNOWN
 
             if getattr(mission, "current_step_kind", None) is RouteStepKind.CROSSWALK:
