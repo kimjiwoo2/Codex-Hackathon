@@ -47,6 +47,18 @@ flowchart LR
 | `frontend/assets/` | 이미지와 정적 자산 |
 | `frontend/scripts/` | 개발 보조 스크립트 |
 
+## 백엔드 내부 구조
+
+| 경로 | 책임 |
+| --- | --- |
+| `backend/src/app/api/` | HTTP 라우트와 라우터 조합 |
+| `backend/src/app/schemas/` | API 경계의 요청·응답 모델 |
+| `backend/src/app/repositories/` | 향후 데이터베이스·외부 저장소 어댑터 |
+| `backend/tests/unit/` | 외부 I/O 없는 단위 테스트 |
+| `backend/tests/integration/` | 애플리케이션 경계를 통과하는 통합 테스트 |
+
+현재는 데이터 저장소가 없으므로 `repositories/`에는 구현을 두지 않습니다. 저장소가 도입되면 API 계층이 저장소 세부사항을 직접 알지 않도록 이 경계에 어댑터를 추가합니다.
+
 ## 기본 의존 원칙
 
 - 프런트엔드는 문서화된 API 계약에만 의존합니다.
