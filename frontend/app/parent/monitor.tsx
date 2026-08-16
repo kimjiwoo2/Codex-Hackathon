@@ -5,27 +5,22 @@ import { BottomNav } from '@/components/ican/bottom-nav';
 import { Screen } from '@/components/ican/screen';
 import { TopBar } from '@/components/ican/top-bar';
 import { ICanColors } from '@/constants/ican-theme';
+import { getEventLabel, getMissionStatusPresentation } from '@/features/mission/parent-monitor-presentation';
 import { useMissionDraft } from '@/features/mission/mission-draft-context';
 import { useParentSnapshot } from '@/hooks/use-parent-snapshot';
 
-const statusLabel = {
-  WAITING: '출발 대기 중',
-  GOING: '마트로 이동 중',
-  SHOPPING: '물건을 찾는 중',
-  RETURNING: '집으로 돌아오는 중',
-  COMPLETED: '심부름 완료',
-  CANCELED: '심부름 취소',
-} as const;
-
-function eventLabel(eventType: string) {
-  return eventType.replaceAll('_', ' ').toLowerCase();
-}
-
 export default function MonitorScreen() {
-  const { result } = useMissionDraft();
-  const { error, events, loading, refresh, snapshot } = useParentSnapshot(result?.mission.id, result?.parentToken);
-  const hasLocation = Boolean(snapshot?.location);
+  const { createResult } = useMissionDraft();
+  const { error, events, loading, refresh, snapshot } = useParentSnapshot(
+    createResult?.missionId,
+    createResult?.parentToken,
+  );
+  const location = snapshot?.location;
   const distance = snapshot ? `${Math.round(snapshot.remainingDistanceM)}m` : '-';
+  const status = getMissionStatusPresentation(snapshot?.status ?? 'WAITING');
+  const displayedEvents = events.slice(-3);
+  const progressWidth = `${status.progress}%` as `${number}%`;
+  const knobLeft = `${Math.min(status.progress, 96)}%` as `${number}%`;
 
   return (
     <Screen scroll contentStyle={styles.screen}>
@@ -36,7 +31,7 @@ export default function MonitorScreen() {
           <Ionicons color={ICanColors.greenDark} name="location" size={48} />
           <View style={styles.locationCopy}>
             <Text style={styles.locationTitle}>
-              {hasLocation ? `${snapshot.location?.latitude.toFixed(5)}, ${snapshot.location?.longitude.toFixed(5)}` : '아이 위치를 기다리는 중'}
+              {location ? `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}` : '아이 위치를 기다리는 중'}
             </Text>
             <Text style={styles.locationMeta}>
               남은 거리 <Text style={styles.distance}>{distance}</Text>
@@ -52,20 +47,21 @@ export default function MonitorScreen() {
         <View style={styles.progressCard}>
           <Text style={styles.cardTitle}>현재 단계</Text>
           <View style={styles.progressTrack}>
-            <View style={styles.progressFill} />
-            <View style={styles.progressKnob} />
+            <View style={[styles.progressFill, { width: progressWidth }]} />
+            <View style={[styles.progressKnob, { left: knobLeft }]} />
           </View>
-          <Text style={styles.progressLabel}>{snapshot ? statusLabel[snapshot.status] : loading ? '불러오는 중' : '미션 정보 없음'}</Text>
+          <Text style={styles.progressLabel}>{loading && !snapshot ? '미션 상태 불러오는 중' : status.label}</Text>
+          <Text style={styles.statusMessage}>{status.message}</Text>
           <View style={styles.divider} />
-          {events.length === 0 && <Text style={styles.emptyEvents}>새 알림이 없습니다.</Text>}
-          {events.slice(-3).map((entry, index) => (
+          {displayedEvents.length === 0 && <Text style={styles.emptyEvents}>상태가 바뀌면 여기에 알림이 표시돼요.</Text>}
+          {displayedEvents.map((entry, index) => (
             <View key={entry.eventId} style={styles.timelineRow}>
               <View style={[styles.timelineDot, styles.timelineDotDone]}>
                 <Ionicons color={ICanColors.paper} name="checkmark" size={13} />
               </View>
-              {index < Math.min(events.length, 3) - 1 && <View style={styles.timelineLine} />}
+              {index < displayedEvents.length - 1 && <View style={styles.timelineLine} />}
               <Text style={styles.time}>{new Date(entry.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</Text>
-              <Text style={styles.timelineLabel}>{eventLabel(entry.eventType)}</Text>
+              <Text style={styles.timelineLabel}>{getEventLabel(entry.eventType)}</Text>
             </View>
           ))}
         </View>
@@ -112,9 +108,10 @@ const styles = StyleSheet.create({
   },
   cardTitle: { color: ICanColors.ink, fontSize: 15, fontWeight: '600' },
   progressTrack: { backgroundColor: '#EFEFEE', borderRadius: 4, height: 7, marginTop: 10, overflow: 'visible' },
-  progressFill: { backgroundColor: '#76A052', borderRadius: 4, height: 7, width: '54%' },
-  progressKnob: { backgroundColor: '#76A052', borderRadius: 9, height: 18, left: '51%', position: 'absolute', top: -6, width: 18 },
+  progressFill: { backgroundColor: '#76A052', borderRadius: 4, height: 7 },
+  progressKnob: { backgroundColor: '#76A052', borderRadius: 9, height: 18, position: 'absolute', top: -6, width: 18 },
   progressLabel: { color: '#76A052', fontSize: 14, marginTop: 8 },
+  statusMessage: { color: ICanColors.ink, fontSize: 14, fontWeight: '600', lineHeight: 20, marginTop: 5 },
   emptyEvents: { color: ICanColors.muted, fontSize: 14, paddingVertical: 8 },
   divider: { backgroundColor: ICanColors.border, height: 1, marginVertical: 11 },
   timelineRow: { alignItems: 'center', flexDirection: 'row', height: 33, position: 'relative' },

@@ -9,6 +9,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "test:parent-monitor": "node --test features/mission/parent-monitor-presentation.test.mjs",
     "test:parent-snapshot": "node --test services/parent-snapshot-adapter.test.mjs"
   },
   "dependencies": {
