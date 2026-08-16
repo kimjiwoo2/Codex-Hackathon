@@ -140,9 +140,27 @@ def test_mission_aggregate_round_trip_and_updates(repository) -> None:
     assert verified.last_verdict is ItemVerdict.MATCH
 
 
-def test_status_update_can_persist_return_route_authority(repository) -> None:
+def test_shopping_to_returning_resets_route_scoped_navigation_state(repository) -> None:
     mission_repository, _ = repository
     created, _, _, _ = _create_mission(mission_repository)
+    mission_repository.update_location(
+        created.mission.id,
+        LocationUpdate(
+            lat=37.5651,
+            lng=126.9895,
+            observed_at=datetime.now(UTC),
+            accuracy_m=5.0,
+            heading_deg=90.0,
+            speed_mps=1.0,
+            route_kind=RouteKind.OUTBOUND,
+            step_index=4,
+            step_kind=RouteStepKind.CROSSWALK,
+            progress_m=120.0,
+            off_route_streak=1,
+            wrong_way_streak=1,
+            arrival_streak=2,
+        ),
+    )
 
     updated = mission_repository.update_status(
         created.mission.id,
@@ -153,6 +171,93 @@ def test_status_update_can_persist_return_route_authority(repository) -> None:
     assert updated is not None
     assert updated.status is MissionStatus.RETURNING
     assert updated.current_route_kind is RouteKind.RETURNING
+    assert updated.current_step_index == 0
+    assert updated.current_step_kind is RouteStepKind.UNKNOWN
+    assert updated.progress_m == 0
+    assert updated.off_route_streak == 0
+    assert updated.wrong_way_streak == 0
+    assert updated.arrival_streak == 0
+
+
+def test_going_to_returning_preserves_outbound_retrace_navigation_state(repository) -> None:
+    mission_repository, _ = repository
+    created, _, _, _ = _create_mission(mission_repository)
+    mission_repository.update_location(
+        created.mission.id,
+        LocationUpdate(
+            lat=37.5651,
+            lng=126.9895,
+            observed_at=datetime.now(UTC),
+            accuracy_m=5.0,
+            heading_deg=90.0,
+            speed_mps=1.0,
+            route_kind=RouteKind.OUTBOUND,
+            step_index=4,
+            step_kind=RouteStepKind.CROSSWALK,
+            progress_m=120.0,
+            off_route_streak=1,
+            wrong_way_streak=1,
+            arrival_streak=1,
+        ),
+    )
+
+    updated = mission_repository.update_status(
+        created.mission.id,
+        MissionStatus.RETURNING,
+        route_kind=RouteKind.OUTBOUND,
+    )
+
+    assert updated is not None
+    assert updated.current_route_kind is RouteKind.OUTBOUND
+    assert updated.current_step_index == 4
+    assert updated.current_step_kind is RouteStepKind.CROSSWALK
+    assert updated.progress_m == 120.0
+    assert updated.off_route_streak == 1
+    assert updated.wrong_way_streak == 1
+    assert updated.arrival_streak == 1
+
+
+def test_idempotent_returning_update_preserves_navigation_state(repository) -> None:
+    mission_repository, _ = repository
+    created, _, _, _ = _create_mission(mission_repository)
+    mission_repository.update_status(
+        created.mission.id,
+        MissionStatus.RETURNING,
+        route_kind=RouteKind.RETURNING,
+    )
+    mission_repository.update_location(
+        created.mission.id,
+        LocationUpdate(
+            lat=37.5651,
+            lng=126.9895,
+            observed_at=datetime.now(UTC),
+            accuracy_m=5.0,
+            heading_deg=90.0,
+            speed_mps=1.0,
+            route_kind=RouteKind.RETURNING,
+            step_index=2,
+            step_kind=RouteStepKind.TURN_LEFT,
+            progress_m=40.0,
+            off_route_streak=1,
+            wrong_way_streak=1,
+            arrival_streak=1,
+        ),
+    )
+
+    updated = mission_repository.update_status(
+        created.mission.id,
+        MissionStatus.RETURNING,
+        route_kind=RouteKind.RETURNING,
+    )
+
+    assert updated is not None
+    assert updated.current_route_kind is RouteKind.RETURNING
+    assert updated.current_step_index == 2
+    assert updated.current_step_kind is RouteStepKind.TURN_LEFT
+    assert updated.progress_m == 40.0
+    assert updated.off_route_streak == 1
+    assert updated.wrong_way_streak == 1
+    assert updated.arrival_streak == 1
 
 
 def test_create_mission_persists_initial_route_step(repository) -> None:

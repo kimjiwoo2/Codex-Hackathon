@@ -219,6 +219,49 @@ def test_early_return_at_zero_progress_requires_two_home_samples_before_completi
     assert repository.location_updates[0].step_kind is PersistedRouteStepKind.ARRIVAL
 
 
+def test_cached_return_route_requires_two_home_samples_after_route_state_reset() -> None:
+    return_route = _route().model_copy(
+        update={
+            "points": tuple(reversed(_route().points)),
+            "steps": (
+                RouteStep(
+                    index=0,
+                    kind=RouteStepKind.START,
+                    coordinate=Coordinate(longitude=126.002, latitude=37.0),
+                    cumulative_distance_m=0,
+                ),
+                RouteStep(
+                    index=1,
+                    kind=RouteStepKind.ARRIVE,
+                    coordinate=Coordinate(longitude=126.0, latitude=37.0),
+                    cumulative_distance_m=200,
+                ),
+            ),
+        }
+    )
+    repository = _RepositoryStub(
+        status=MissionStatus.RETURNING,
+        outbound_route=_route().model_dump(mode="json"),
+        return_route=return_route.model_dump(mode="json"),
+        current_route_kind=RouteKind.RETURNING,
+    )
+    request = LocationRequest(
+        latitude=37.0,
+        longitude=126.0,
+        accuracy_m=5,
+        heading_deg=270,
+        observed_at=datetime.now(UTC),
+    )
+
+    first = LocationService(repository).update("mission-1", request)
+    second = LocationService(repository).update("mission-1", request)
+
+    assert first.status == "RETURNING"
+    assert first.instruction_code is not InstructionCode.ARRIVED
+    assert second.status == "COMPLETED"
+    assert second.instruction_code is InstructionCode.ARRIVED
+
+
 def test_zero_progress_return_far_from_home_recovers_outbound_progress_without_completion() -> None:
     repository = _RepositoryStub(
         status=MissionStatus.RETURNING,

@@ -172,9 +172,23 @@ class MissionRepository:
             mission = session.get(Mission, mission_id)
             if mission is None:
                 return None
+            route_authority_changes_to_returning = (
+                mission.current_route_kind is RouteKind.OUTBOUND
+                and route_kind is RouteKind.RETURNING
+            )
             mission.status = status
             if route_kind is not None:
                 mission.current_route_kind = route_kind
+            if route_authority_changes_to_returning:
+                # A cached return route has its own coordinate/progress space.  Reset every
+                # route-scoped value in the same transaction so an outbound arrival sample
+                # cannot complete the mission on the first home-side GPS update.
+                mission.current_step_index = 0
+                mission.current_step_kind = RouteStepKind.UNKNOWN
+                mission.progress_m = 0
+                mission.off_route_streak = 0
+                mission.wrong_way_streak = 0
+                mission.arrival_streak = 0
             session.flush()
             return mission
 
