@@ -15,6 +15,7 @@ from app.core.config import Settings
 from app.db.base import Base
 from app.integrations.openai import VisionUnavailable
 from app.main import ApplicationComponents, assemble_components
+from app.models.enums import RouteStepKind as PersistedRouteStepKind
 from app.repositories.missions import MissionSeed
 from app.schemas.navigation.route import (
     Coordinate,
@@ -34,6 +35,7 @@ from app.security.tokens import generate_opaque_token, hash_opaque_token
 
 JPG = b"\xff\xd8\xffdemo\xff\xd9"
 HOME = Coordinate(latitude=37.0, longitude=127.0)
+CROSSWALK = Coordinate(latitude=37.0005, longitude=127.0)
 STORE = Coordinate(latitude=37.001, longitude=127.0)
 
 
@@ -87,13 +89,14 @@ class ForbiddenRoadVisionDouble(VisionDouble):
 
 
 def _routes() -> RoundTripRoutes:
-    midpoint = Coordinate(latitude=37.0005, longitude=127.0)
+    approach = Coordinate(latitude=37.00025, longitude=127.0)
     outbound = Route(
         total_distance_m=111.0,
         total_time_seconds=120,
         points=(
             RoutePoint(**HOME.model_dump(), cumulative_distance_m=0),
-            RoutePoint(**midpoint.model_dump(), cumulative_distance_m=55.5),
+            RoutePoint(**approach.model_dump(), cumulative_distance_m=27.75),
+            RoutePoint(**CROSSWALK.model_dump(), cumulative_distance_m=55.5),
             RoutePoint(**STORE.model_dump(), cumulative_distance_m=111),
         ),
         steps=(
@@ -105,13 +108,19 @@ def _routes() -> RoundTripRoutes:
             ),
             RouteStep(
                 index=1,
+                kind=RouteStepKind.STRAIGHT,
+                coordinate=approach,
+                cumulative_distance_m=27.75,
+            ),
+            RouteStep(
+                index=2,
                 kind=RouteStepKind.CROSSWALK,
-                coordinate=midpoint,
+                coordinate=CROSSWALK,
                 cumulative_distance_m=55.5,
                 is_crosswalk=True,
             ),
             RouteStep(
-                index=2,
+                index=3,
                 kind=RouteStepKind.ARRIVE,
                 coordinate=STORE,
                 cumulative_distance_m=111,
@@ -123,7 +132,7 @@ def _routes() -> RoundTripRoutes:
         total_time_seconds=120,
         points=(
             RoutePoint(**STORE.model_dump(), cumulative_distance_m=0),
-            RoutePoint(**midpoint.model_dump(), cumulative_distance_m=55.5),
+            RoutePoint(**CROSSWALK.model_dump(), cumulative_distance_m=55.5),
             RoutePoint(**HOME.model_dump(), cumulative_distance_m=111),
         ),
         steps=(
@@ -136,7 +145,7 @@ def _routes() -> RoundTripRoutes:
             RouteStep(
                 index=1,
                 kind=RouteStepKind.STRAIGHT,
-                coordinate=midpoint,
+                coordinate=CROSSWALK,
                 cumulative_distance_m=55.5,
             ),
             RouteStep(
@@ -201,7 +210,7 @@ def _location(coordinate: Coordinate) -> dict[str, object]:
 
 
 @pytest.mark.anyio
-async def test_real_create_app_completes_demo_e2e_with_shared_sqlite_graph(
+async def test_real_fastapi_trace_keeps_child_parent_and_backend_state_in_sync(
     composed_app_factory: Callable[[ApplicationComponents], FastAPI],
 ) -> None:
     components, tmap = _components(VisionDouble())
@@ -222,10 +231,27 @@ async def test_real_create_app_completes_demo_e2e_with_shared_sqlite_graph(
         mission = created.json()
         assert len(mission["joinCode"]) == 6
 
+        parent_headers = {"Authorization": f"Bearer {mission['parentToken']}"}
+        waiting_snapshot = await client.get(
+            f"/missions/{mission['missionId']}/snapshot", headers=parent_headers
+        )
+        assert waiting_snapshot.status_code == 200
+        assert waiting_snapshot.json()["status"] == "WAITING"
+
         joined = await client.post("/missions/join", json={"joinCode": mission["joinCode"]})
         assert joined.status_code == 200
         child_headers = {"Authorization": f"Bearer {joined.json()['childToken']}"}
-        parent_headers = {"Authorization": f"Bearer {mission['parentToken']}"}
+
+        aggregate = components.repository.get_aggregate(mission["missionId"])
+        assert aggregate is not None
+        item_id = aggregate.items[0].id
+
+        item_before_arrival = await client.post(
+            f"/missions/{mission['missionId']}/items/{item_id}/verify",
+            files={"image": ("milk.jpg", JPG, "image/jpeg")},
+            headers=child_headers,
+        )
+        assert item_before_arrival.status_code == 409
 
         guidance = await client.post(
             f"/missions/{mission['missionId']}/locations",
@@ -234,22 +260,20 @@ async def test_real_create_app_completes_demo_e2e_with_shared_sqlite_graph(
         )
         assert guidance.status_code == 200
         assert guidance.json()["status"] == "GOING"
-        assert guidance.json()["instruction_code"] == "CROSSWALK_STOP"
+        assert guidance.json()["instruction_code"] == "CONTINUE"
 
-        store_first = await client.post(
+        crosswalk_guidance = await client.post(
             f"/missions/{mission['missionId']}/locations",
-            json=_location(STORE),
+            json=_location(CROSSWALK),
             headers=child_headers,
         )
-        assert store_first.status_code == 200
-        assert store_first.json()["status"] == "GOING"
-        store_second = await client.post(
-            f"/missions/{mission['missionId']}/locations",
-            json=_location(STORE),
-            headers=child_headers,
-        )
-        assert store_second.status_code == 200
-        assert store_second.json()["status"] == "SHOPPING"
+        assert crosswalk_guidance.status_code == 200
+        assert crosswalk_guidance.json()["status"] == "GOING"
+        assert crosswalk_guidance.json()["instruction_code"] == "CROSSWALK_STOP"
+
+        persisted_mission = components.repository.get_mission(mission["missionId"])
+        assert persisted_mission is not None
+        assert persisted_mission.current_step_kind is PersistedRouteStepKind.CROSSWALK
 
         road = await client.post(
             f"/missions/{mission['missionId']}/vision/road",
@@ -258,11 +282,61 @@ async def test_real_create_app_completes_demo_e2e_with_shared_sqlite_graph(
             headers=child_headers,
         )
         assert road.status_code == 200
-        assert road.json()["result"] == "CAUTION"
+        assert road.json()["result"] == "STOP"
 
-        aggregate = components.repository.get_aggregate(mission["missionId"])
-        assert aggregate is not None
-        item_id = aggregate.items[0].id
+        crosswalk_snapshot = await client.get(
+            f"/missions/{mission['missionId']}/snapshot", headers=parent_headers
+        )
+        assert crosswalk_snapshot.status_code == 200
+        assert crosswalk_snapshot.json()["status"] == "GOING"
+        assert crosswalk_snapshot.json()["location"] == {
+            "latitude": CROSSWALK.latitude,
+            "longitude": CROSSWALK.longitude,
+            "observedAt": crosswalk_snapshot.json()["location"]["observedAt"],
+            "accuracyM": 5.0,
+        }
+        assert crosswalk_snapshot.json()["events"][-1]["eventType"] == "ROAD_HAZARD"
+        assert crosswalk_snapshot.json()["events"][-1]["payload"] == {"result": "STOP"}
+
+        store_first = await client.post(
+            f"/missions/{mission['missionId']}/locations",
+            json=_location(STORE),
+            headers=child_headers,
+        )
+        assert store_first.status_code == 200
+        assert store_first.json()["status"] == "GOING"
+
+        first_store_snapshot = await client.get(
+            f"/missions/{mission['missionId']}/snapshot", headers=parent_headers
+        )
+        assert first_store_snapshot.status_code == 200
+        assert first_store_snapshot.json()["status"] == "GOING"
+        assert first_store_snapshot.json()["location"]["latitude"] == STORE.latitude
+        assert first_store_snapshot.json()["location"]["longitude"] == STORE.longitude
+
+        item_after_first_store_sample = await client.post(
+            f"/missions/{mission['missionId']}/items/{item_id}/verify",
+            files={"image": ("milk.jpg", JPG, "image/jpeg")},
+            headers=child_headers,
+        )
+        assert item_after_first_store_sample.status_code == 409
+
+        store_second = await client.post(
+            f"/missions/{mission['missionId']}/locations",
+            json=_location(STORE),
+            headers=child_headers,
+        )
+        assert store_second.status_code == 200
+        assert store_second.json()["status"] == "SHOPPING"
+
+        shopping_snapshot = await client.get(
+            f"/missions/{mission['missionId']}/snapshot", headers=parent_headers
+        )
+        assert shopping_snapshot.status_code == 200
+        assert shopping_snapshot.json()["status"] == "SHOPPING"
+        assert shopping_snapshot.json()["location"]["latitude"] == STORE.latitude
+        assert shopping_snapshot.json()["location"]["longitude"] == STORE.longitude
+
         item = await client.post(
             f"/missions/{mission['missionId']}/items/{item_id}/verify",
             files={"image": ("milk.jpg", JPG, "image/jpeg")},
@@ -271,11 +345,12 @@ async def test_real_create_app_completes_demo_e2e_with_shared_sqlite_graph(
         assert item.status_code == 200
         assert item.json()["verdict"] == "MATCH"
 
-        returning = await client.post(
-            f"/missions/{mission['missionId']}/commands/return-home", headers=parent_headers
+        returning_snapshot = await client.get(
+            f"/missions/{mission['missionId']}/snapshot", headers=parent_headers
         )
-        assert returning.status_code == 200
-        assert returning.json()["status"] == "RETURNING"
+        assert returning_snapshot.status_code == 200
+        assert returning_snapshot.json()["status"] == "RETURNING"
+        assert returning_snapshot.json()["items"][0]["verdict"] == "MATCH"
 
         home_first = await client.post(
             f"/missions/{mission['missionId']}/locations",
