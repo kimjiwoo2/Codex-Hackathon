@@ -379,6 +379,11 @@ async def test_forbidden_vision_output_is_clamped_before_api_event_or_tts(
         joined = await client.post("/missions/join", json={"joinCode": mission["joinCode"]})
         child_headers = {"Authorization": f"Bearer {joined.json()['childToken']}"}
         parent_headers = {"Authorization": f"Bearer {mission['parentToken']}"}
+        location = await client.post(
+            f"/missions/{mission['missionId']}/locations",
+            json=_location(STORE),
+            headers=child_headers,
+        )
 
         road = await client.post(
             f"/missions/{mission['missionId']}/vision/road",
@@ -390,9 +395,13 @@ async def test_forbidden_vision_output_is_clamped_before_api_event_or_tts(
             f"/missions/{mission['missionId']}/snapshot", headers=parent_headers
         )
 
+    assert location.status_code == 200
     assert road.status_code == 200
-    assert road.json()["result"] in {"STOP", "CAUTION", "UNKNOWN"}
+    assert road.json()["result"] == "UNKNOWN"
+    assert road.json()["message"] == "판단할 수 없어요. 멈추고 주변을 직접 확인하세요."
     assert snapshot.status_code == 200
+    assert snapshot.json()["events"][0]["eventType"] == "VISION_UNAVAILABLE"
+    assert snapshot.json()["events"][0]["payload"] == {"result": "UNKNOWN"}
     serialized = json.dumps({"road": road.json(), "snapshot": snapshot.json()}, ensure_ascii=False)
     assert "CROSS_OK" not in serialized
     assert "건너도 된다" not in serialized
