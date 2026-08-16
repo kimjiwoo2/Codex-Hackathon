@@ -201,7 +201,7 @@ def _location(coordinate: Coordinate) -> dict[str, object]:
 
 
 @pytest.mark.anyio
-async def test_real_create_app_completes_demo_e2e_with_shared_sqlite_graph(
+async def test_real_fastapi_trace_keeps_child_parent_and_backend_state_in_sync(
     composed_app_factory: Callable[[ApplicationComponents], FastAPI],
 ) -> None:
     components, tmap = _components(VisionDouble())
@@ -222,10 +222,27 @@ async def test_real_create_app_completes_demo_e2e_with_shared_sqlite_graph(
         mission = created.json()
         assert len(mission["joinCode"]) == 6
 
+        parent_headers = {"Authorization": f"Bearer {mission['parentToken']}"}
+        waiting_snapshot = await client.get(
+            f"/missions/{mission['missionId']}/snapshot", headers=parent_headers
+        )
+        assert waiting_snapshot.status_code == 200
+        assert waiting_snapshot.json()["status"] == "WAITING"
+
         joined = await client.post("/missions/join", json={"joinCode": mission["joinCode"]})
         assert joined.status_code == 200
         child_headers = {"Authorization": f"Bearer {joined.json()['childToken']}"}
-        parent_headers = {"Authorization": f"Bearer {mission['parentToken']}"}
+
+        aggregate = components.repository.get_aggregate(mission["missionId"])
+        assert aggregate is not None
+        item_id = aggregate.items[0].id
+
+        item_before_arrival = await client.post(
+            f"/missions/{mission['missionId']}/items/{item_id}/verify",
+            files={"image": ("milk.jpg", JPG, "image/jpeg")},
+            headers=child_headers,
+        )
+        assert item_before_arrival.status_code == 409
 
         guidance = await client.post(
             f"/missions/{mission['missionId']}/locations",
@@ -235,6 +252,29 @@ async def test_real_create_app_completes_demo_e2e_with_shared_sqlite_graph(
         assert guidance.status_code == 200
         assert guidance.json()["status"] == "GOING"
         assert guidance.json()["instruction_code"] == "CROSSWALK_STOP"
+
+        road = await client.post(
+            f"/missions/{mission['missionId']}/vision/road",
+            data={"capturedAt": datetime.now(UTC).isoformat()},
+            files={"image": ("road.jpg", JPG, "image/jpeg")},
+            headers=child_headers,
+        )
+        assert road.status_code == 200
+        assert road.json()["result"] == "STOP"
+
+        crosswalk_snapshot = await client.get(
+            f"/missions/{mission['missionId']}/snapshot", headers=parent_headers
+        )
+        assert crosswalk_snapshot.status_code == 200
+        assert crosswalk_snapshot.json()["status"] == "GOING"
+        assert crosswalk_snapshot.json()["location"] == {
+            "latitude": HOME.latitude,
+            "longitude": HOME.longitude,
+            "observedAt": crosswalk_snapshot.json()["location"]["observedAt"],
+            "accuracyM": 5.0,
+        }
+        assert crosswalk_snapshot.json()["events"][-1]["eventType"] == "ROAD_HAZARD"
+        assert crosswalk_snapshot.json()["events"][-1]["payload"] == {"result": "STOP"}
 
         store_first = await client.post(
             f"/missions/{mission['missionId']}/locations",
@@ -251,18 +291,14 @@ async def test_real_create_app_completes_demo_e2e_with_shared_sqlite_graph(
         assert store_second.status_code == 200
         assert store_second.json()["status"] == "SHOPPING"
 
-        road = await client.post(
-            f"/missions/{mission['missionId']}/vision/road",
-            data={"capturedAt": datetime.now(UTC).isoformat()},
-            files={"image": ("road.jpg", JPG, "image/jpeg")},
-            headers=child_headers,
+        shopping_snapshot = await client.get(
+            f"/missions/{mission['missionId']}/snapshot", headers=parent_headers
         )
-        assert road.status_code == 200
-        assert road.json()["result"] == "CAUTION"
+        assert shopping_snapshot.status_code == 200
+        assert shopping_snapshot.json()["status"] == "SHOPPING"
+        assert shopping_snapshot.json()["location"]["latitude"] == STORE.latitude
+        assert shopping_snapshot.json()["location"]["longitude"] == STORE.longitude
 
-        aggregate = components.repository.get_aggregate(mission["missionId"])
-        assert aggregate is not None
-        item_id = aggregate.items[0].id
         item = await client.post(
             f"/missions/{mission['missionId']}/items/{item_id}/verify",
             files={"image": ("milk.jpg", JPG, "image/jpeg")},
@@ -271,11 +307,12 @@ async def test_real_create_app_completes_demo_e2e_with_shared_sqlite_graph(
         assert item.status_code == 200
         assert item.json()["verdict"] == "MATCH"
 
-        returning = await client.post(
-            f"/missions/{mission['missionId']}/commands/return-home", headers=parent_headers
+        returning_snapshot = await client.get(
+            f"/missions/{mission['missionId']}/snapshot", headers=parent_headers
         )
-        assert returning.status_code == 200
-        assert returning.json()["status"] == "RETURNING"
+        assert returning_snapshot.status_code == 200
+        assert returning_snapshot.json()["status"] == "RETURNING"
+        assert returning_snapshot.json()["items"][0]["verdict"] == "MATCH"
 
         home_first = await client.post(
             f"/missions/{mission['missionId']}/locations",

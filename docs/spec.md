@@ -35,7 +35,7 @@
 | 아이 | 카메라로 도로 상황을 비춤 | `STOP | CAUTION | UNKNOWN` 중 하나와 고정 안전 문구 수신 |
 | 아이 | 마트에서 상품을 비춤 | `MATCH | SIMILAR | MISMATCH | UNKNOWN` 판정 수신 |
 | 부모 | 앱을 열고 진행 상황 확인 | 3초 polling으로 최신 위치·상태·상품·신규 이벤트 확인 |
-| 아이 | 상품을 못 찾았거나 귀가 필요 | 상품 상태와 무관하게 귀가 모드 시작 |
+| 아이 | 상품을 못 찾았거나 귀가 필요 | 부모에게 귀가 요청 필요를 알리고, 부모 명령 뒤 귀가 안내 수신 |
 
 ## 5. 기능 요구사항
 
@@ -46,7 +46,7 @@
 - [ ] P0: GPS 정확도, heading, progress를 이용한 역방향·경로 이탈 안내
 - [ ] P0: 샘플 JPEG 기반 도로 상황 보조 판단과 부모 위험 이벤트
 - [ ] P0: 상품 이미지와 이름·브랜드·용량 비교 결과 저장
-- [ ] P0: 상품 결과와 관계없이 귀가 명령 가능
+- [ ] P0: 부모가 상품 결과와 관계없이 귀가 명령 가능
 - [ ] P0: 부모 snapshot polling으로 최신 위치·상태·상품·이벤트 제공
 - [ ] P0: 외부 AI 실패 시 보수적 안내로 안전하게 저하
 - [ ] P1: 장시간 정지·위치 미수신을 snapshot 시점에 계산해 부모에게 표시
@@ -78,6 +78,10 @@ POST /missions/{missionId}/items/{itemId}/verify
 POST /missions/{missionId}/commands/return-home
 GET  /missions/{missionId}/snapshot?afterEventId={cursor}
 ```
+
+`return-home`은 `parentToken`만 호출할 수 있다. 아이 토큰은 위치·도로·상품 확인만 전송하며,
+아이가 직접 귀가 명령 API를 호출한다고 가정하지 않는다. 모든 상품이 `MATCH`인 경우에는 서버가
+상품 확인 결과로 귀가 상태를 시작할 수 있다.
 
 데이터는 `missions`, `mission_items`, `mission_events` 세 테이블로 제한한다. 세부 schema, 파일 소유권, 테스트 기준은 [`backend-parallel-implementation-plan.md`](backend-parallel-implementation-plan.md)를 따른다.
 

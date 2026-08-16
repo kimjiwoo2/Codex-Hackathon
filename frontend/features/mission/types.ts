@@ -1,4 +1,4 @@
-export type MissionStatus = 'WAITING' | 'GOING' | 'SHOPPING' | 'RETURNING' | 'COMPLETED' | 'CANCELED';
+export type MissionStatus = 'WAITING' | 'GOING' | 'SHOPPING' | 'RETURNING' | 'COMPLETED';
 
 export type MissionItem = {
   id: string;
