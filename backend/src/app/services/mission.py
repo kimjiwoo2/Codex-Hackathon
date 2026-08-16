@@ -3,6 +3,7 @@ from typing import Protocol
 
 from app.core.errors import AppError
 from app.models import MissionStatus
+from app.models import RouteStepKind as MissionRouteStepKind
 from app.repositories.missions import MissionItemSeed, MissionSeed
 from app.schemas.mission import (
     CreateMissionRequest,
@@ -13,6 +14,14 @@ from app.schemas.mission import (
 )
 from app.security import MissionJoinCodeVerifier
 from app.security.tokens import generate_join_code, generate_opaque_token, hash_opaque_token
+
+_ROUTE_STEP_KIND_MAP = {
+    "STRAIGHT": MissionRouteStepKind.STRAIGHT,
+    "LEFT_TURN": MissionRouteStepKind.TURN_LEFT,
+    "RIGHT_TURN": MissionRouteStepKind.TURN_RIGHT,
+    "CROSSWALK": MissionRouteStepKind.CROSSWALK,
+    "ARRIVE": MissionRouteStepKind.ARRIVAL,
+}
 
 
 class MissionRepositoryProtocol(Protocol):
@@ -46,6 +55,10 @@ class MissionService:
 
     async def create(self, request: CreateMissionRequest) -> CreateMissionResponse:
         routes = await self._tmap_client.get_round_trip(request.home, request.store)
+        initial_step = next(
+            (step for step in routes.outbound.steps if step.kind.value != "START"),
+            None,
+        )
         parent_token = generate_opaque_token()
         join_code = generate_join_code()
         aggregate = self._repository.create_mission(
@@ -60,6 +73,12 @@ class MissionService:
                 join_code=join_code,
                 join_code_expires_at=datetime.now(UTC)
                 + timedelta(minutes=self._join_code_ttl_minutes),
+                current_step_index=initial_step.index if initial_step is not None else 0,
+                current_step_kind=(
+                    _ROUTE_STEP_KIND_MAP.get(initial_step.kind.value, MissionRouteStepKind.UNKNOWN)
+                    if initial_step is not None
+                    else MissionRouteStepKind.UNKNOWN
+                ),
             ),
             [
                 MissionItemSeed(name=item.name, brand=item.brand, size=item.size)

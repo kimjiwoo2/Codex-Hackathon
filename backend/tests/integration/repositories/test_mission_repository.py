@@ -49,7 +49,12 @@ def repository(tmp_path):
         engine.dispose()
 
 
-def _create_mission(repository: MissionRepository):
+def _create_mission(
+    repository: MissionRepository,
+    *,
+    current_step_index: int = 0,
+    current_step_kind: RouteStepKind = RouteStepKind.UNKNOWN,
+):
     parent_token = generate_opaque_token()
     child_token = generate_opaque_token()
     join_code = generate_join_code()
@@ -64,6 +69,8 @@ def _create_mission(repository: MissionRepository):
             parent_token_hash=hash_opaque_token(parent_token),
             join_code=join_code,
             join_code_expires_at=datetime.now(UTC) + timedelta(minutes=30),
+            current_step_index=current_step_index,
+            current_step_kind=current_step_kind,
         ),
         [MissionItemSeed(name="우유", brand="서울우유", size="1L")],
     )
@@ -131,6 +138,21 @@ def test_mission_aggregate_round_trip_and_updates(repository) -> None:
 
     assert verified is not None
     assert verified.last_verdict is ItemVerdict.MATCH
+
+
+def test_create_mission_persists_initial_route_step(repository) -> None:
+    mission_repository, _ = repository
+    aggregate, _, _, _ = _create_mission(
+        mission_repository,
+        current_step_index=4,
+        current_step_kind=RouteStepKind.CROSSWALK,
+    )
+
+    mission = mission_repository.get_mission(aggregate.mission.id)
+
+    assert mission is not None
+    assert mission.current_step_index == 4
+    assert mission.current_step_kind is RouteStepKind.CROSSWALK
 
 
 def test_plaintext_credentials_are_never_persisted(repository) -> None:

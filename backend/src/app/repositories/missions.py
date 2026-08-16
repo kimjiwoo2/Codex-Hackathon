@@ -44,6 +44,8 @@ class MissionSeed:
     parent_token_hash: str
     join_code: str = field(repr=False)
     join_code_expires_at: datetime
+    current_step_index: int = 0
+    current_step_kind: RouteStepKind = RouteStepKind.UNKNOWN
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +130,8 @@ class MissionRepository:
                     parent_token_hash=seed.parent_token_hash,
                     join_code_hash=hash_join_code(seed.join_code),
                     join_code_expires_at=expires_at,
+                    current_step_index=seed.current_step_index,
+                    current_step_kind=seed.current_step_kind,
                     items=[
                         MissionItem(
                             ordinal=ordinal,

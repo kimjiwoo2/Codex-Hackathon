@@ -43,6 +43,25 @@ def _route() -> Route:
     )
 
 
+def _route_starting_at_crosswalk() -> Route:
+    route = _route()
+    return route.model_copy(
+        update={
+            "steps": (
+                route.steps[0],
+                RouteStep(
+                    index=4,
+                    kind=RouteStepKind.CROSSWALK,
+                    coordinate=Coordinate(longitude=126.975, latitude=37.565),
+                    cumulative_distance_m=40,
+                    is_crosswalk=True,
+                ),
+                route.steps[1],
+            )
+        }
+    )
+
+
 @pytest.mark.anyio
 async def test_create_fetches_and_persists_round_trip_routes() -> None:
     repository = Mock()
@@ -70,6 +89,30 @@ async def test_create_fetches_and_persists_round_trip_routes() -> None:
     assert seed.outbound_route == routes.outbound.model_dump(mode="json")
     assert seed.return_route == routes.returning.model_dump(mode="json")
     assert seed.join_code_expires_at > datetime.now(UTC) + timedelta(minutes=29)
+
+
+@pytest.mark.anyio
+async def test_create_preserves_first_actionable_crosswalk_as_initial_step() -> None:
+    repository = Mock()
+    repository.create_mission.side_effect = lambda seed, items: MissionAggregate(
+        mission=type("Mission", (), {"id": "mission-1"})(), items=tuple(items)
+    )
+    route = _route_starting_at_crosswalk()
+    tmap = AsyncMock()
+    tmap.get_round_trip.return_value = RoundTripRoutes(outbound=route, returning=_route())
+    service = MissionService(repository=repository, tmap_client=tmap, join_code_ttl_minutes=30)
+
+    await service.create(
+        CreateMissionRequest(
+            home=Coordinate(longitude=126.97, latitude=37.56),
+            store=Coordinate(longitude=126.98, latitude=37.57),
+            items=[{"name": "우유"}],
+        )
+    )
+
+    seed = repository.create_mission.call_args.args[0]
+    assert seed.current_step_index == 4
+    assert seed.current_step_kind.value == "CROSSWALK"
 
 
 def test_join_consumes_code_once_and_returns_first_instruction() -> None:
