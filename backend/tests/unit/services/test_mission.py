@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -16,6 +17,22 @@ from app.schemas.navigation.route import (
     RouteStepKind,
 )
 from app.services.mission import MissionService
+
+
+def _created_aggregate() -> MissionAggregate:
+    return MissionAggregate(
+        mission=SimpleNamespace(id="mission-1"),
+        items=(
+            SimpleNamespace(
+                id="item-uuid",
+                name="우유",
+                brand="서울우유",
+                size="1L",
+                last_verdict="UNKNOWN",
+                detected_label=None,
+            ),
+        ),
+    )
 
 
 def _route() -> Route:
@@ -65,9 +82,7 @@ def _route_starting_at_crosswalk() -> Route:
 @pytest.mark.anyio
 async def test_create_fetches_and_persists_round_trip_routes() -> None:
     repository = Mock()
-    repository.create_mission.side_effect = lambda seed, items: MissionAggregate(
-        mission=type("Mission", (), {"id": "mission-1"})(), items=tuple(items)
-    )
+    repository.create_mission.return_value = _created_aggregate()
     routes = RoundTripRoutes(outbound=_route(), returning=_route())
     tmap = AsyncMock()
     tmap.get_round_trip.return_value = routes
@@ -94,9 +109,7 @@ async def test_create_fetches_and_persists_round_trip_routes() -> None:
 @pytest.mark.anyio
 async def test_create_preserves_first_actionable_crosswalk_as_initial_step() -> None:
     repository = Mock()
-    repository.create_mission.side_effect = lambda seed, items: MissionAggregate(
-        mission=type("Mission", (), {"id": "mission-1"})(), items=tuple(items)
-    )
+    repository.create_mission.return_value = _created_aggregate()
     route = _route_starting_at_crosswalk()
     tmap = AsyncMock()
     tmap.get_round_trip.return_value = RoundTripRoutes(outbound=route, returning=_route())
@@ -118,7 +131,23 @@ async def test_create_preserves_first_actionable_crosswalk_as_initial_step() -> 
 def test_join_consumes_code_once_and_returns_first_instruction() -> None:
     repository = Mock()
     repository.consume_join_code.return_value = True
-    repository.get_mission.return_value = type("Mission", (), {"current_step_kind": "UNKNOWN"})()
+    repository.get_aggregate.return_value = MissionAggregate(
+        mission=type("Mission", (), {"id": "mission-1"})(),
+        items=(
+            type(
+                "Item",
+                (),
+                {
+                    "id": "item-uuid",
+                    "name": "우유",
+                    "brand": "서울우유",
+                    "size": "1L",
+                    "last_verdict": "UNKNOWN",
+                    "detected_label": None,
+                },
+            )(),
+        ),
+    )
     service = MissionService(
         repository=repository, tmap_client=AsyncMock(), join_code_ttl_minutes=30
     )
@@ -131,6 +160,7 @@ def test_join_consumes_code_once_and_returns_first_instruction() -> None:
     assert response.status is MissionStatus.GOING
     assert response.instruction_code == "START_OUTBOUND"
     assert response.child_token
+    assert response.items[0].item_id == "item-uuid"
     repository.consume_join_code.assert_called_once()
 
 

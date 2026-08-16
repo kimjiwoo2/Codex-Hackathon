@@ -80,8 +80,12 @@ GET  /missions/{missionId}/snapshot?afterEventId={cursor}
 ```
 
 `return-home`은 `parentToken`만 호출할 수 있다. 아이 토큰은 위치·도로·상품 확인만 전송하며,
-아이가 직접 귀가 명령 API를 호출한다고 가정하지 않는다. 모든 상품이 `MATCH`인 경우에는 서버가
-상품 확인 결과로 귀가 상태를 시작할 수 있다.
+`POST /missions`와 `POST /missions/join`은 각 상품의 서버 생성 `itemId`, 요청 조건,
+현재 `verdict`와 `detectedLabel`을 `items`로 반환한다. 아이 앱은 이 `itemId`만
+`/items/{itemId}/verify` path에 사용하며 로컬 draft id를 사용하지 않는다. verify 응답은
+`MATCH | SIMILAR | MISMATCH | UNKNOWN` 및 `status`를 포함한다. 마지막 상품이 `MATCH`이면
+응답과 부모 snapshot 모두 즉시 `RETURNING`을 나타낸다. 아이가 직접 귀가 명령 API를 호출한다고
+가정하지 않는다.
 
 데이터는 `missions`, `mission_items`, `mission_events` 세 테이블로 제한한다. 세부 schema, 파일 소유권, 테스트 기준은 [`backend-parallel-implementation-plan.md`](backend-parallel-implementation-plan.md)를 따른다.
 

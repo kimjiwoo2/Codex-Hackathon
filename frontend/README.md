@@ -21,8 +21,11 @@ Expo 관련 구현 전에는 SDK 54 기준의 버전별 공식 문서를 확인�
 ```bash
 cd frontend
 npm ci
+cp .env.example .env
 npm start
 ```
+
+`EXPO_PUBLIC_API_BASE_URL`에는 backend Function URL을 넣습니다. 아이 참여·상품 확인은 이 URL을 통해 child bearer token과 JPEG multipart만 전송하며 이미지나 token을 기기에 영속화하지 않습니다.
 
 | 명령 | 용도 |
 | --- | --- |

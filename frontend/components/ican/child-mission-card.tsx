@@ -14,10 +14,14 @@ export function ChildMissionCard({
   stage,
   onAdvance,
   onOpenCamera,
+  itemDetails = '서울 우유 1L',
+  itemName = '우유 1개',
 }: {
   stage: ChildJourneyStage;
   onAdvance?: () => void;
   onOpenCamera?: () => void;
+  itemDetails?: string;
+  itemName?: string;
 }) {
   const arrived = stage === 'ARRIVED';
   const returning = stage === 'RETURNING';
@@ -37,8 +41,8 @@ export function ChildMissionCard({
       <View style={styles.itemCard}>
         <Image resizeMode="contain" source={require('../../assets/ican/milk.png')} style={styles.milk} />
         <View>
-          <Text style={styles.itemName}>우유 1개</Text>
-          <Text style={styles.itemMeta}>서울 우유 1L</Text>
+          <Text style={styles.itemName}>{itemName}</Text>
+          <Text style={styles.itemMeta}>{itemDetails}</Text>
         </View>
       </View>
 

@@ -107,6 +107,9 @@ async def test_verifies_product_with_fixed_message_and_persists_safe_fields(
     assert response.verdict is expected
     assert response.message == message
     assert response.detected_label == "서울우유 1L"
+    assert response.status is (
+        MissionStatus.RETURNING if expected is ItemVerdict.MATCH else MissionStatus.SHOPPING
+    )
     vision_client.analyze_product.assert_awaited_once_with(
         b"\xff\xd8\xffsample\xff\xd9", name="우유", brand="서울우유", size="1L"
     )
@@ -168,7 +171,7 @@ async def test_all_matching_items_request_safe_return_home_transition() -> None:
         aggregate=_aggregate(ItemVerdict.MATCH, ItemVerdict.UNKNOWN),
     )
 
-    await service.verify(
+    response = await service.verify(
         mission_id="mission-1",
         item_id="item-2",
         image=b"\xff\xd8\xffsample\xff\xd9",
@@ -176,6 +179,7 @@ async def test_all_matching_items_request_safe_return_home_transition() -> None:
     )
 
     mission_service.return_home.assert_called_once_with("mission-1")
+    assert response.status is MissionStatus.RETURNING
 
 
 @pytest.mark.anyio

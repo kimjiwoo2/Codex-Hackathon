@@ -230,6 +230,7 @@ async def test_real_fastapi_trace_keeps_child_parent_and_backend_state_in_sync(
         assert created.status_code == 201
         mission = created.json()
         assert len(mission["joinCode"]) == 6
+        assert mission["items"][0]["verdict"] == "UNKNOWN"
 
         parent_headers = {"Authorization": f"Bearer {mission['parentToken']}"}
         waiting_snapshot = await client.get(
@@ -240,11 +241,10 @@ async def test_real_fastapi_trace_keeps_child_parent_and_backend_state_in_sync(
 
         joined = await client.post("/missions/join", json={"joinCode": mission["joinCode"]})
         assert joined.status_code == 200
+        assert joined.json()["items"] == mission["items"]
         child_headers = {"Authorization": f"Bearer {joined.json()['childToken']}"}
 
-        aggregate = components.repository.get_aggregate(mission["missionId"])
-        assert aggregate is not None
-        item_id = aggregate.items[0].id
+        item_id = joined.json()["items"][0]["itemId"]
 
         item_before_arrival = await client.post(
             f"/missions/{mission['missionId']}/items/{item_id}/verify",
@@ -344,6 +344,20 @@ async def test_real_fastapi_trace_keeps_child_parent_and_backend_state_in_sync(
         )
         assert item.status_code == 200
         assert item.json()["verdict"] == "MATCH"
+        assert item.json()["status"] == "RETURNING"
+
+        automatic_snapshot = await client.get(
+            f"/missions/{mission['missionId']}/snapshot", headers=parent_headers
+        )
+        assert automatic_snapshot.status_code == 200
+        assert automatic_snapshot.json()["status"] == "RETURNING"
+        assert automatic_snapshot.json()["items"][0]["verdict"] == "MATCH"
+
+        manual_return = await client.post(
+            f"/missions/{mission['missionId']}/commands/return-home", headers=parent_headers
+        )
+        assert manual_return.status_code == 200
+        assert manual_return.json()["status"] == "RETURNING"
 
         returning_snapshot = await client.get(
             f"/missions/{mission['missionId']}/snapshot", headers=parent_headers

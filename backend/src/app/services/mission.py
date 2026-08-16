@@ -10,6 +10,7 @@ from app.schemas.mission import (
     CreateMissionResponse,
     JoinMissionRequest,
     JoinMissionResponse,
+    MissionItemResponse,
     ReturnHomeResponse,
 )
 from app.security import MissionJoinCodeVerifier
@@ -28,6 +29,8 @@ class MissionRepositoryProtocol(Protocol):
     def create_mission(self, seed: MissionSeed, items: list[MissionItemSeed]): ...
 
     def get_mission(self, mission_id: str): ...
+
+    def get_aggregate(self, mission_id: str): ...
 
     def consume_join_code(self, mission_id: str, *, child_token_hash: str) -> bool: ...
 
@@ -91,6 +94,7 @@ class MissionService:
             mission_id=aggregate.mission.id,
             join_code=join_code,
             parent_token=parent_token,
+            items=_item_responses(aggregate.items),
         )
 
     def join(self, request: JoinMissionRequest) -> JoinMissionResponse:
@@ -108,12 +112,18 @@ class MissionService:
                 message="이미 사용된 참여 코드입니다.",
                 status_code=409,
             )
+        aggregate = self._repository.get_aggregate(mission_id)
+        if aggregate is None:
+            raise AppError(
+                code="MISSION_NOT_FOUND", message="미션을 찾을 수 없습니다.", status_code=404
+            )
         return JoinMissionResponse(
             mission_id=mission_id,
             child_token=child_token,
             status=MissionStatus.GOING,
             instruction_code="START_OUTBOUND",
             message="마트로 출발해요. 길 안내를 따라가세요.",
+            items=_item_responses(aggregate.items),
         )
 
     def return_home(self, mission_id: str) -> ReturnHomeResponse:
@@ -156,4 +166,18 @@ def _return_strategy(route_kind: RouteKind) -> str:
         "RETRACE_OUTBOUND_FROM_PROGRESS"
         if route_kind is RouteKind.OUTBOUND
         else "USE_CACHED_RETURN_ROUTE"
+    )
+
+
+def _item_responses(items: object) -> tuple[MissionItemResponse, ...]:
+    return tuple(
+        MissionItemResponse(
+            item_id=item.id,
+            name=item.name,
+            brand=item.brand,
+            size=item.size,
+            verdict=item.last_verdict,
+            detected_label=item.detected_label,
+        )
+        for item in items
     )

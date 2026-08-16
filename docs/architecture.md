@@ -60,7 +60,8 @@ flowchart LR
 2. backend가 TMAP에서 집→마트와 마트→집 보행 경로를 조회한다.
 3. 왕복 경로 JSON과 token hash를 Neon에 저장한다.
 4. 부모에게 `missionId`, 6자리 `joinCode`, `parentToken`을 반환한다.
-5. 아이가 코드로 참여하면 코드를 소비하고 `childToken`, `GOING`, 첫 안내를 반환한다.
+5. 생성과 참여 응답에는 서버 생성 `itemId`를 포함한 canonical `items` DTO를 함께 반환한다.
+6. 아이가 코드로 참여하면 코드를 소비하고 `childToken`, `GOING`, 첫 안내와 `items`를 반환한다.
 
 ### 이동
 
@@ -86,9 +87,9 @@ GPS update마다 TMAP을 재호출하지 않는다. 실제 경로가 없으면 �
 1. 아이가 근접 상품 JPEG를 전송한다.
 2. 이름·브랜드·용량을 기준으로 `MATCH | SIMILAR | MISMATCH | UNKNOWN`을 반환한다.
 3. 마지막 판정만 저장한다.
-4. 모든 상품이 `MATCH`이면 서버가 캐시된 귀가 경로를 활성화한다. 상품 결과와 무관한 수동
-   귀가 명령은 부모 token만 호출할 수 있으며, 아이 앱은 이 endpoint를 직접 호출하지 않는다.
-5. 집 도착 시 `COMPLETED`와 부모 완료 이벤트를 만든다.
+4. 모든 상품이 `MATCH`이면 verify 응답에서 `RETURNING`을 반환하고 캐시된 귀가 경로를 활성화한다. 부모 snapshot도 같은 상태를 읽는다.
+5. 상품 결과와 무관한 수동 귀가 명령은 부모 token만 호출하며 같은 cached return-route 상태 전이를 사용한다. 아이 앱은 이 endpoint를 직접 호출하지 않는다.
+6. 집 도착 시 `COMPLETED`와 부모 완료 이벤트를 만든다.
 
 ## 데이터 모델
 

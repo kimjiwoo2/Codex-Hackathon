@@ -9,6 +9,18 @@ export type MissionItem = {
   verified: boolean;
 };
 
+export type ItemVerdict = 'MATCH' | 'SIMILAR' | 'MISMATCH' | 'UNKNOWN';
+
+/** Server-issued item identity. Never substitute a local draft id in verify URLs. */
+export type MissionItemDto = {
+  itemId: string;
+  name: string;
+  brand: string | null;
+  size: string | null;
+  verdict: ItemVerdict;
+  detectedLabel: string | null;
+};
+
 export type MissionDraft = {
   destination: { name: string; distance: string; duration: string };
   item: MissionItem;
@@ -27,9 +39,21 @@ export type CreateMissionResult = {
   joinCode: string;
   joinCodeExpiresAt: string;
   parentToken: string;
+  items: MissionItemDto[];
 };
 
 export type JoinMissionResult = {
-  mission: MissionSnapshot;
+  missionId: string;
   childToken: string;
+  status: 'GOING' | 'SHOPPING' | 'RETURNING';
+  instructionCode: string;
+  message: string;
+  items: MissionItemDto[];
+};
+
+export type ItemVerificationResult = {
+  verdict: ItemVerdict;
+  message: string;
+  detectedLabel: string | null;
+  status: 'SHOPPING' | 'RETURNING';
 };

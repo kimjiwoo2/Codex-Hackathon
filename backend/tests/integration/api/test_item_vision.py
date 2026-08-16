@@ -66,6 +66,7 @@ async def test_verify_item_returns_fixed_contract_and_never_persists_upload(
         "verdict": "MATCH",
         "message": "요청한 상품이 맞아요. 장바구니에 담아 주세요.",
         "detectedLabel": "서울우유 1L",
+        "status": "RETURNING",
     }
     vision_client.analyze_product.assert_awaited_once()
     repository.append_event.assert_called_once_with(
