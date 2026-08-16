@@ -10,11 +10,13 @@
 ## 결정
 
 - 백엔드는 FastAPI 모놀리스를 유지한다.
-- 데이터 저장소는 Neon Postgres를 사용한다.
+- 데이터 저장소는 Neon Free Postgres의 AWS Singapore 리전과 pooled SSL 연결을 사용한다.
 - 지도/보행 경로는 TMAP Open API를 사용한다.
 - 도로 상황 판단과 상품 확인은 OpenAI 비전 API를 사용한다.
 - 부모 화면 동기화는 WebSocket 대신 2~3초 polling을 사용한다.
 - 배포 기준은 AWS Lambda Python 3.12 + Function URL + Mangum으로 둔다.
+- Lambda도 `ap-southeast-1`에 배치해 DB와 리전을 맞춘다.
+- 원본 이미지와 장기 위치 이력은 저장하지 않는다.
 
 ## 근거
 
@@ -29,10 +31,18 @@
 
 - 백엔드 구현은 `services`, `repositories`, `integrations` 경계를 중심으로 나눈다.
 - 도로 판단 응답은 안전상 `STOP | CAUTION | UNKNOWN`으로 제한한다.
+- `GO`, `CROSS_OK`, 횡단 허가 문구는 schema와 후처리에서 금지한다.
 - 실시간 연결보다 HTTP 중심 API 계약과 idempotent 상태 전이에 집중한다.
 
 ## 제외한 대안
 
-- App Runner: 현재 저장소의 Python 3.12 기준과 바로 맞지 않아 초기 배포 준비 비용이 더 크다.
+- App Runner: 신규 고객에게 더 이상 열려 있지 않고 현재 저장소의 Python 3.12 기준과 바로 맞지 않는다.
+- AWS Location Service와 Google Maps Routes: 공식 coverage에서 대한민국 보행 경로 요구를 충족하지 못한다.
 - Kakao Mobility 도보 길찾기: 제휴 중심 진입 장벽이 있어 해커톤 시연 준비에 불리하다.
 - WebSocket 기반 부모 모니터링: 구현 복잡도 대비 이번 시연 이득이 작다.
+
+## 후속 작업
+
+- `TMAP_APP_KEY`, Neon pooled URL, OpenAI 이미지 입력, AWS Lambda 권한을 구현 시작 시 preflight한다.
+- Linux Lambda artifact에서 `psycopg`, `openai`, `mangum` import를 검증한다.
+- 실제 제품 전환 전 미성년자·위치정보·국외 이전·Zero Data Retention 요구를 별도 검토한다.
