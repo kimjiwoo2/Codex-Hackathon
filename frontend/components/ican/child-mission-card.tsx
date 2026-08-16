@@ -69,7 +69,11 @@ export function ChildMissionCard({
       </Pressable>
 
       {arrived && (
-        <Pressable accessibilityRole="button" onPress={onOpenCamera} style={styles.cameraButton}>
+        <Pressable
+          accessibilityHint="카메라를 열어 우유 사진을 찍습니다"
+          accessibilityRole="button"
+          onPress={onOpenCamera}
+          style={({ pressed }) => [styles.cameraButton, pressed && styles.cameraButtonPressed]}>
           <Ionicons color={ICanColors.paper} name="camera" size={21} />
           <Text style={styles.cameraButtonText}>카메라로 물건 확인하기</Text>
         </Pressable>
@@ -115,5 +119,6 @@ const styles = StyleSheet.create({
   },
   mapHintText: { color: ICanColors.paper, fontSize: 13, fontWeight: '700', marginLeft: 6 },
   cameraButton: { alignItems: 'center', backgroundColor: ICanColors.yellow, borderRadius: 8, flexDirection: 'row', height: 55, justifyContent: 'center', marginTop: 24 },
+  cameraButtonPressed: { opacity: 0.78, transform: [{ scale: 0.99 }] },
   cameraButtonText: { color: ICanColors.paper, fontSize: 18, fontWeight: '600', marginLeft: 8 },
 });

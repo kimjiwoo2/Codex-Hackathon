@@ -7,7 +7,7 @@ import { Screen } from '@/components/ican/screen';
 import { useChildJourney } from '@/features/child/child-journey-context';
 
 export default function ChildCompletedScreen() {
-  const { reset } = useChildJourney();
+  const { setStage } = useChildJourney();
 
   return (
     <Screen bottomInset={false} contentStyle={styles.screen}>
@@ -17,8 +17,8 @@ export default function ChildCompletedScreen() {
         <ChildMissionCard stage="RETURNING" />
         <ChildBottomNav
           onHome={() => {
-            reset();
-            router.replace('/child');
+            setStage('RETURNING');
+            router.replace('/child/completed');
           }}
         />
       </ImageBackground>
