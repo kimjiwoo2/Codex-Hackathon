@@ -1,5 +1,11 @@
 export type ChildJourneyStage = 'READY' | 'RIGHT' | 'LEFT' | 'STRAIGHT' | 'STOP' | 'ARRIVED' | 'RETURNING';
 
+export type ChildMissionSession = {
+  missionId: string;
+  childToken: string;
+  shareLocation: boolean;
+};
+
 export type ChildJourneyView = {
   stage: ChildJourneyStage;
   headlinePrefix?: string;

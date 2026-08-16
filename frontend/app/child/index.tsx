@@ -2,9 +2,12 @@ import { router } from 'expo-router';
 import { Image, ImageBackground, StyleSheet, Text } from 'react-native';
 
 import { ChildBottomNav } from '@/components/ican/child-bottom-nav';
+import { ChildLocationStatus } from '@/components/ican/child-location-status';
 import { ChildMissionCard } from '@/components/ican/child-mission-card';
 import { Screen } from '@/components/ican/screen';
+import { useChildAutoNavigation } from '@/features/child/use-child-auto-navigation';
 import { useChildJourney } from '@/features/child/child-journey-context';
+import { useChildLocation } from '@/features/child/use-child-location';
 
 function JourneyHeadline({ stage }: { stage: ReturnType<typeof useChildJourney>['stage'] }) {
   if (stage === 'STOP') {
@@ -18,11 +21,14 @@ function JourneyHeadline({ stage }: { stage: ReturnType<typeof useChildJourney>[
 
 export default function ChildHomeScreen() {
   const { advance, setStage, stage } = useChildJourney();
+  const { location, retry: retryLocation, status: locationStatus } = useChildLocation();
+  useChildAutoNavigation({ location, setStage, stage });
 
   return (
     <Screen bottomInset={false} contentStyle={styles.screen}>
       <ImageBackground resizeMode="cover" source={require('../../assets/ican/child-background.png')} style={styles.background}>
         <Image resizeMode="contain" source={require('../../assets/ican/logo.png')} style={styles.logo} />
+        <ChildLocationStatus onRetry={retryLocation} status={locationStatus} />
         <JourneyHeadline stage={stage} />
         <ChildMissionCard
           onAdvance={advance}

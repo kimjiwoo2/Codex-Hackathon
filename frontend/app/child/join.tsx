@@ -14,7 +14,7 @@ export default function ChildJoinScreen() {
   const [joinCode, setJoinCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { reset } = useChildJourney();
+  const { reset, setSession } = useChildJourney();
 
   const submit = async () => {
     if (joinCode.length !== 6) {
@@ -25,7 +25,12 @@ export default function ChildJoinScreen() {
     setLoading(true);
     setError('');
     try {
-      await missionAdapter.joinMission(joinCode);
+      const result = await missionAdapter.joinMission(joinCode);
+      setSession({
+        childToken: result.childToken,
+        missionId: result.mission.id,
+        shareLocation: result.mission.shareLocation,
+      });
       reset();
       router.replace('/child');
     } catch {
