@@ -130,13 +130,16 @@ class ItemVisionService:
             {"itemId": item_id, "verdict": verdict.value},
         )
 
+        status = aggregate.mission.status
         if _all_items_match(aggregate, item_id=item_id, new_verdict=verdict):
             self._mission_service.return_home(mission_id)
+            status = MissionStatus.RETURNING
 
         return ItemVerificationResponse(
             verdict=verdict,
             message=_MESSAGES[verdict],
             detected_label=detected_label,
+            status=status,
         )
 
 

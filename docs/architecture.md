@@ -60,7 +60,7 @@ flowchart LR
 2. backend가 TMAP에서 집→마트와 마트→집 보행 경로를 조회한다.
 3. 왕복 경로 JSON과 token hash를 Neon에 저장한다.
 4. 부모에게 `missionId`, 6자리 `joinCode`, 서버 설정으로 계산한 `joinCodeExpiresAt`, `parentToken`을 반환한다.
-5. 아이가 코드로 참여하면 서버가 해당 만료 시각을 기준으로 코드를 소비하고 `childToken`, `GOING`, 첫 안내를 반환한다. 존재하지 않음, 만료됨, 이미 사용됨은 각각 `JOIN_CODE_INVALID`, `JOIN_CODE_EXPIRED`, `JOIN_CODE_ALREADY_USED` 오류로 구분한다.
+5. 아이가 코드로 참여하면 서버가 해당 만료 시각을 기준으로 코드를 소비하고 `childToken`, `GOING`, 첫 안내와 서버가 생성한 상품 `itemId` 목록을 반환한다. 존재하지 않음, 만료됨, 이미 사용됨은 각각 `JOIN_CODE_INVALID`, `JOIN_CODE_EXPIRED`, `JOIN_CODE_ALREADY_USED` 오류로 구분한다.
 
 ### 이동
 
@@ -84,7 +84,7 @@ GPS update마다 TMAP을 재호출하지 않는다. 실제 경로가 없으면 �
 ### 상품·귀가
 
 1. 아이가 근접 상품 JPEG를 전송한다.
-2. 이름·브랜드·용량을 기준으로 `MATCH | SIMILAR | MISMATCH | UNKNOWN`을 반환한다.
+2. 이름·브랜드·용량을 기준으로 `MATCH | SIMILAR | MISMATCH | UNKNOWN`과 현재 미션 상태를 반환한다.
 3. 마지막 판정만 저장한다.
 4. 모든 상품이 `MATCH`이면 서버가 캐시된 귀가 경로를 활성화한다. 상품 결과와 무관한 수동
    귀가 명령은 부모 token만 호출할 수 있으며, 아이 앱은 이 endpoint를 직접 호출하지 않는다.

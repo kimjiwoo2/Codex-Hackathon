@@ -9,7 +9,11 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test:parent-snapshot": "node --test services/parent-snapshot-adapter.test.mjs"
+    "test:child-mission-state": "node --test features/child/child-mission-state.test.mjs",
+    "test:location-guidance": "node --test features/child/location-guidance.test.mjs",
+    "test:parent-monitor": "node --test features/mission/parent-monitor-presentation.test.mjs",
+    "test:parent-snapshot": "node --test services/parent-snapshot-adapter.test.mjs",
+    "test:safety": "node --test --experimental-strip-types features/road-vision/safety.test.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -23,7 +27,9 @@
     "expo-haptics": "~15.0.8",
     "expo-image": "~3.0.11",
     "expo-linking": "~8.0.12",
+    "expo-location": "~19.0.8",
     "expo-router": "~6.0.24",
+    "expo-speech": "~14.0.8",
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
     "expo-symbols": "~1.0.8",

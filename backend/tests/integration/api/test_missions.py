@@ -5,7 +5,23 @@ from app.api import missions
 from app.api.dependencies import get_role_token_verifier
 from app.api.errors import register_error_handlers
 from app.schemas.common import MissionRole, RolePrincipal
-from app.schemas.mission import CreateMissionResponse, JoinMissionResponse, ReturnHomeResponse
+from app.schemas.mission import (
+    CreateMissionResponse,
+    JoinMissionResponse,
+    MissionItemResponse,
+    ReturnHomeResponse,
+)
+
+_ITEMS = (
+    MissionItemResponse(
+        item_id="item-1",
+        name="우유",
+        brand=None,
+        size=None,
+        verdict="UNKNOWN",
+        detected_label=None,
+    ),
+)
 
 
 class _Service:
@@ -15,6 +31,7 @@ class _Service:
             join_code="123456",
             join_code_expires_at="2026-08-16T12:30:00+00:00",
             parent_token="a" * 43,
+            items=_ITEMS,
         )
 
     def join(self, _request):
@@ -24,6 +41,7 @@ class _Service:
             status="GOING",
             instruction_code="START_OUTBOUND",
             message="마트로 출발해요.",
+            items=_ITEMS,
         )
 
     def return_home(self, _mission_id):
@@ -76,4 +94,6 @@ def test_create_and_join_are_public_but_return_requires_parent() -> None:
     assert forbidden.status_code == 403
     assert returned.status_code == 200
     assert created.json()["joinCodeExpiresAt"] == "2026-08-16T12:30:00+00:00"
+    assert created.json()["items"][0]["itemId"] == "item-1"
+    assert joined.json()["items"][0]["itemId"] == "item-1"
     assert returned.json()["returnStrategy"] == "RETRACE_OUTBOUND_FROM_PROGRESS"

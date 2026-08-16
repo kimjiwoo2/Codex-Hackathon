@@ -14,10 +14,16 @@ export function ChildMissionCard({
   stage,
   onAdvance,
   onOpenCamera,
+  demoFallbackEnabled = false,
+  itemDetails = '서울 우유 1L',
+  itemName = '우유 1개',
 }: {
   stage: ChildJourneyStage;
   onAdvance?: () => void;
   onOpenCamera?: () => void;
+  demoFallbackEnabled?: boolean;
+  itemDetails?: string;
+  itemName?: string;
 }) {
   const arrived = stage === 'ARRIVED';
   const returning = stage === 'RETURNING';
@@ -37,16 +43,16 @@ export function ChildMissionCard({
       <View style={styles.itemCard}>
         <Image resizeMode="contain" source={require('../../assets/ican/milk.png')} style={styles.milk} />
         <View>
-          <Text style={styles.itemName}>우유 1개</Text>
-          <Text style={styles.itemMeta}>서울 우유 1L</Text>
+          <Text style={styles.itemName}>{itemName}</Text>
+          <Text style={styles.itemMeta}>{itemDetails}</Text>
         </View>
       </View>
 
       <Pressable
-        accessibilityHint="누를 때마다 다음 길 안내 상태로 이동합니다"
+        accessibilityHint="GPS 이동에 따라 자동으로 바뀌며, 데모에서는 눌러서 다음 단계로 이동할 수 있습니다"
         accessibilityLabel="지도에서 다음 길 안내 보기"
         accessibilityRole="button"
-        disabled={arrived || returning}
+        disabled={arrived || (returning && !demoFallbackEnabled)}
         onPress={onAdvance}
         style={[styles.mapWrap, arrived && styles.arrivedMap]}>
         <Image resizeMode="cover" source={require('../../assets/ican/route-summary.png')} style={styles.map} />
@@ -60,10 +66,12 @@ export function ChildMissionCard({
             <Ionicons color="rgba(255,84,93,0.76)" name="warning" size={154} />
           </View>
         )}
-        {!arrived && !returning && (
+        {!arrived && (!returning || demoFallbackEnabled) && (
           <View pointerEvents="none" style={styles.mapHint}>
-            <Ionicons color={ICanColors.paper} name="hand-left" size={18} />
-            <Text style={styles.mapHintText}>지도를 눌러 다음 길 안내 보기</Text>
+            <Ionicons color={ICanColors.paper} name="navigate" size={18} />
+            <Text style={styles.mapHintText}>
+              {returning ? 'GPS 귀가 안내 · 눌러서 데모 완료' : 'GPS 자동 안내 · 눌러서 데모 진행'}
+            </Text>
           </View>
         )}
       </Pressable>

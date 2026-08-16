@@ -30,7 +30,13 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "심부름 물건을 확인하기 위해 카메라 접근이 필요해요."
+          "cameraPermission": "아이캔은 심부름 물건과 이동 중 도로를 확인하기 위해 카메라를 사용합니다."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "안전한 길 안내를 위해 심부름 중 현재 위치가 필요해요."
         }
       ],
       [

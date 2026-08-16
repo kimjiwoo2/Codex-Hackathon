@@ -8,6 +8,7 @@ import { Screen } from '@/components/ican/screen';
 import { TopBar } from '@/components/ican/top-bar';
 import { ICanColors } from '@/constants/ican-theme';
 import { useChildJourney } from '@/features/child/child-journey-context';
+import { useChildMission } from '@/features/child/child-mission-context';
 import { getJoinCodeErrorMessage } from '@/features/mission/presentation';
 import { useMissionDraft } from '@/features/mission/mission-draft-context';
 import { MissionAdapterError, missionAdapter } from '@/services/mission-adapter';
@@ -18,6 +19,7 @@ export default function ChildJoinScreen() {
   const [loading, setLoading] = useState(false);
   const { reset } = useChildJourney();
   const { setJoinResult } = useMissionDraft();
+  const { join } = useChildMission();
 
   const submit = async () => {
     if (joinCode.length !== 6) {
@@ -28,7 +30,9 @@ export default function ChildJoinScreen() {
     setLoading(true);
     setError('');
     try {
-      setJoinResult(await missionAdapter.joinMission(joinCode));
+      const session = await missionAdapter.joinMission(joinCode);
+      setJoinResult(session);
+      join(session);
       reset();
       router.replace('/child');
     } catch (caught) {
@@ -74,6 +78,10 @@ export default function ChildJoinScreen() {
           <Text style={styles.counter}>{joinCode.length} / 6</Text>
           {error ? <Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text> : null}
 
+          <View style={styles.demoNotice}>
+            <Ionicons color={ICanColors.greenDark} name="information-circle" size={18} />
+            <Text style={styles.demoNoticeText}>보호자에게 받은 참여 코드를 입력해요.</Text>
+          </View>
         </View>
         <View style={styles.buttonWrap}>
           <PrimaryButton label="심부름 시작하기" loading={loading} onPress={submit} />
@@ -114,5 +122,15 @@ const styles = StyleSheet.create({
   inputError: { borderColor: '#EB5757' },
   counter: { alignSelf: 'flex-end', color: ICanColors.subtle, fontSize: 12, marginTop: 7 },
   error: { color: '#D74646', fontSize: 13, marginTop: 10, textAlign: 'center' },
+  demoNotice: {
+    alignItems: 'center',
+    backgroundColor: ICanColors.paleGreen,
+    borderRadius: 10,
+    flexDirection: 'row',
+    marginTop: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  demoNoticeText: { color: ICanColors.greenDark, fontSize: 13, fontWeight: '600', marginLeft: 6 },
   buttonWrap: { paddingBottom: 28, paddingHorizontal: 24 },
 });
