@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { BottomNav } from '@/components/ican/bottom-nav';
 import { PrimaryButton } from '@/components/ican/primary-button';
@@ -11,21 +11,8 @@ import { ICanColors } from '@/constants/ican-theme';
 import { useMissionDraft } from '@/features/mission/mission-draft-context';
 import { missionAdapter } from '@/services/mission-adapter';
 
-function Toggle({ enabled, onPress }: { enabled: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="switch"
-      accessibilityState={{ checked: enabled }}
-      onPress={onPress}
-      style={[styles.toggle, enabled && styles.toggleEnabled]}>
-      <Text style={[styles.toggleText, enabled && styles.toggleTextEnabled]}>{enabled ? 'ON' : 'OFF'}</Text>
-      <View style={[styles.knob, enabled && styles.knobEnabled]} />
-    </Pressable>
-  );
-}
-
 export default function ConfirmScreen() {
-  const { draft, setResult, toggleNotifyOffRoute, toggleShareLocation } = useMissionDraft();
+  const { draft, setResult } = useMissionDraft();
   const [loading, setLoading] = useState(false);
 
   const createMission = async () => {
@@ -53,17 +40,8 @@ export default function ConfirmScreen() {
           <Image resizeMode="contain" source={require('../../../assets/ican/time-mascot.png')} style={styles.timeMascot} />
         </View>
         <View style={styles.settingsCard}>
-          <View style={styles.settingRow}>
-            <Ionicons color={ICanColors.green} name="location" size={21} />
-            <Text style={styles.settingLabel}>위치 공유</Text>
-            <Toggle enabled={draft.shareLocation} onPress={toggleShareLocation} />
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.settingRow}>
-            <Ionicons color={ICanColors.green} name="notifications" size={21} />
-            <Text style={styles.settingLabel}>경로 이탈 알림</Text>
-            <Toggle enabled={draft.notifyOffRoute} onPress={toggleNotifyOffRoute} />
-          </View>
+          <Ionicons color={ICanColors.green} name="information-circle" size={21} />
+          <Text style={styles.settingLabel}>위치 공유와 경로 이탈 알림은 현재 모든 미션에 적용됩니다.</Text>
         </View>
         <PrimaryButton label="심부름 시작" loading={loading} onPress={createMission} />
       </View>
@@ -82,14 +60,6 @@ const styles = StyleSheet.create({
   timeRow: { backgroundColor: '#FEF9EC', height: 50 },
   timeLabel: { color: ICanColors.warning },
   timeMascot: { height: 43, marginLeft: 'auto', width: 55 },
-  settingsCard: { backgroundColor: ICanColors.canvas, borderRadius: 10, marginVertical: 7, paddingHorizontal: 15 },
-  settingRow: { alignItems: 'center', flexDirection: 'row', height: 42 },
-  settingLabel: { color: ICanColors.green, flex: 1, fontSize: 15, fontWeight: '600', marginLeft: 10 },
-  divider: { backgroundColor: ICanColors.border, height: 1, marginLeft: 30 },
-  toggle: { alignItems: 'center', borderColor: ICanColors.border, borderRadius: 12, borderWidth: 1, flexDirection: 'row', height: 23, justifyContent: 'space-between', paddingHorizontal: 5, width: 58 },
-  toggleEnabled: { borderColor: 'rgba(163,183,85,0.45)' },
-  toggleText: { color: ICanColors.subtle, fontSize: 11 },
-  toggleTextEnabled: { color: ICanColors.green },
-  knob: { backgroundColor: ICanColors.subtle, borderRadius: 8, height: 15, width: 15 },
-  knobEnabled: { backgroundColor: ICanColors.green },
+  settingsCard: { alignItems: 'center', backgroundColor: ICanColors.canvas, borderRadius: 10, flexDirection: 'row', marginVertical: 7, minHeight: 54, paddingHorizontal: 15 },
+  settingLabel: { color: ICanColors.green, flex: 1, fontSize: 14, fontWeight: '600', marginLeft: 10 },
 });

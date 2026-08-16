@@ -32,6 +32,7 @@ npm start
 | `npm run web` | 웹 앱 실행 |
 | `npm run lint` | Expo ESLint 검사 |
 | `npx tsc --noEmit` | TypeScript 타입 검사 |
+| `npm run test:parent-snapshot` | 부모 snapshot cursor·중복 방지 테스트 |
 
 ## 디렉터리 구조
 
@@ -50,3 +51,8 @@ npm start
 - 서버 비밀값과 핵심 권한 판정 로직을 프런트엔드에 두지 않습니다.
 - 백엔드 연동은 문서화된 API 계약을 통해 수행합니다.
 - 새 환경 변수는 `.env.example`과 이 문서에 함께 기록합니다.
+
+## 백엔드 연결
+
+부모 모니터는 `EXPO_PUBLIC_API_BASE_URL`의 `GET /missions/{missionId}/snapshot`을 3초마다 호출합니다.
+값이 없으면 위치 정보는 요청하지 않고 화면에 재시도 가능한 오류를 표시합니다. 이 값은 공개 앱 설정용 URL이며 비밀값을 넣지 않습니다.
