@@ -27,16 +27,18 @@ export default function RoleScreen() {
             <Ionicons color={ICanColors.green} name="chevron-forward" size={22} />
           </Pressable>
         </Link>
-        <View style={[styles.roleCard, styles.disabledCard]}>
-          <View style={[styles.roleIcon, styles.disabledIcon]}>
-            <Ionicons color={ICanColors.subtle} name="happy" size={28} />
-          </View>
-          <View style={styles.roleCopy}>
-            <Text style={styles.roleTitle}>아이로 시작</Text>
-            <Text style={styles.roleDescription}>아이 모드 디자인을 준비하고 있어요.</Text>
-          </View>
-          <Text style={styles.badge}>준비 중</Text>
-        </View>
+        <Link asChild href="/child" replace>
+          <Pressable accessibilityRole="button" style={styles.roleCard}>
+            <View style={[styles.roleIcon, styles.childRoleIcon]}>
+              <Ionicons color={ICanColors.yellowStrong} name="happy" size={28} />
+            </View>
+            <View style={styles.roleCopy}>
+              <Text style={styles.roleTitle}>아이로 시작</Text>
+              <Text style={styles.roleDescription}>오늘의 심부름과 안전한 길 안내를 확인해요.</Text>
+            </View>
+            <Ionicons color={ICanColors.yellowStrong} name="chevron-forward" size={22} />
+          </Pressable>
+        </Link>
       </View>
     </Screen>
   );
@@ -71,7 +73,5 @@ const styles = StyleSheet.create({
   roleCopy: { flex: 1, marginLeft: 13 },
   roleTitle: { color: ICanColors.ink, fontSize: 18, fontWeight: '700' },
   roleDescription: { color: ICanColors.muted, fontSize: 13, lineHeight: 18, marginTop: 4 },
-  disabledCard: { backgroundColor: '#F8F8F8' },
-  disabledIcon: { backgroundColor: '#ECECEC' },
-  badge: { color: ICanColors.subtle, fontSize: 12 },
+  childRoleIcon: { backgroundColor: '#FFF6DE' },
 });
