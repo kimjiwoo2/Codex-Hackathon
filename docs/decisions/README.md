@@ -19,3 +19,4 @@ ADR은 팀 전체에 영향을 주거나 나중에 되돌리기 비싼 결정을
 | ADR | 상태 | 결정일 | 제목 |
 | --- | --- | --- | --- |
 | [`0001`](0001-expo-frontend.md) | Accepted | 2026-08-16 | Expo 기반 프런트엔드 구성 |
+| [`0002`](0002-fastapi-backend-monolith.md) | Accepted | 2026-08-16 | FastAPI 기반 백엔드 모놀리스 구성 |

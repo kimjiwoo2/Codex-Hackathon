@@ -1,11 +1,41 @@
 # Backend
 
-백엔드 애플리케이션의 루트 디렉터리다.
+가벼운 데모를 위한 FastAPI 기반 모놀리식 HTTP API입니다. 의존성·가상환경·잠금 파일은 `uv`로 관리합니다.
 
-기술 스택 확정 전에는 프레임워크를 초기화하지 않는다. 선택 시 ADR을 먼저 추가하고 다음 내용을 이 문서에 기록한다.
+## 요구 사항
 
-- 요구 런타임과 패키지 매니저 버전
-- 설치, 로컬 실행, 빌드, 테스트 명령
-- 필요한 환경 변수와 `.env.example`
-- API 계약과 오류 응답 형식
-- 데이터베이스 마이그레이션 및 시드 방법
+- [uv](https://docs.astral.sh/uv/)
+- Python 3.12 이상 (`uv`가 없으면 설치·관리할 수 있음)
+
+## 시작하기
+
+```bash
+cd backend
+uv sync --all-groups
+uv run uvicorn app.main:app --reload
+```
+
+서버는 기본적으로 `http://127.0.0.1:8000`에서 실행됩니다. 대화형 API 문서는 `/docs`에서 확인할 수 있습니다.
+
+## 명령
+
+```bash
+uv run ruff format .              # 코드 포맷
+uv run ruff check .               # 린트
+uv run pytest                     # 테스트
+uv run uvicorn app.main:app --reload  # 로컬 서버
+```
+
+## API 계약
+
+### `GET /health`
+
+서비스가 요청을 처리할 수 있는지 확인합니다.
+
+```json
+{
+  "status": "ok"
+}
+```
+
+현재 데모에는 필수 환경 변수, 데이터베이스, 마이그레이션 또는 시드 데이터가 없습니다. 이후 외부 연동이나 비밀값이 필요해지면 `.env.example`과 이 문서에 함께 추가합니다.

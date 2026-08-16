@@ -8,18 +8,18 @@
 ```mermaid
 flowchart LR
   U["사용자"] --> F["Frontend<br>Expo SDK 54"]
-  F -. "계획된 HTTP API" .-> B["Backend<br>스택 미정"]
-  B -.-> E["Database / External services"]
+  F -->|HTTP API| B["Backend<br>FastAPI 모놀리스"]
+  B -. "향후 연동" .-> E["Database / External services"]
 ```
 
-현재 구현된 실행 애플리케이션은 `frontend/`의 Expo 앱입니다. `backend/`는 향후 서버 구현을 위한 경계만 마련되어 있습니다.
+실행 애플리케이션은 `frontend/`의 Expo 앱과 `backend/`의 FastAPI 서버입니다. 데모 단계의 백엔드는 단일 프로세스 모놀리스로 실행하며, 패키지·가상환경·잠금 파일은 `uv`가 소유합니다.
 
 ## 저장소 구조
 
 ```text
 .
 ├── frontend/        # Expo 애플리케이션과 앱 전용 설정
-├── backend/         # 백엔드 애플리케이션 경계
+├── backend/         # FastAPI 모놀리스와 uv 프로젝트 설정
 ├── docs/            # 스펙, 아키텍처, ADR, 개발 규칙
 ├── .github/         # GitHub 협업 설정
 ├── .claude/         # 저장소 공통 에이전트 도구 설정
@@ -34,7 +34,7 @@ flowchart LR
 | 영역 | 책임 | 금지 사항 |
 | --- | --- | --- |
 | `frontend/` | 화면, 라우팅, 사용자 상호작용, 클라이언트 상태, API 호출 | 서버 비밀값 보관, 핵심 권한 판정 |
-| `backend/` | 비즈니스 규칙, 데이터 접근, 인증·권한, 외부 서비스 연동 | UI 표현 로직 |
+| `backend/` | 비즈니스 규칙, 데이터 접근, 인증·권한, 외부 서비스 연동 | UI 표현 로직, 프런트엔드 구현 세부사항 |
 | `docs/` | 스펙, 구조, 의사결정, 협업 규칙 | 실행 코드 |
 | 저장소 루트 | 공통 도구 설정과 진입점 | 앱 전용 소스와 패키지 설정 |
 
@@ -59,12 +59,12 @@ flowchart LR
 
 ## 데이터 흐름
 
-현재 Expo 템플릿은 로컬 화면 렌더링만 수행합니다. 백엔드가 추가되면 `Frontend → HTTP API → Backend → Data source` 흐름과 오류 계약을 이 문서에 반영합니다.
+현재는 `GET /health`로 서버 가용성을 확인할 수 있습니다. 제품 기능이 추가되면 `Frontend → HTTP API → Backend → Data source` 흐름과 오류 계약을 이 문서에 반영합니다.
 
 ## 배포 구조
 
 - 프런트엔드: Expo 기반 iOS, Android, Web 실행을 지원합니다.
-- 백엔드: 기술 스택과 배포 대상 확정 후 기록합니다.
+- 백엔드: FastAPI ASGI 서버로 실행합니다. 데모 배포 대상은 제품 요구사항 확정 후 기록합니다.
 
 ## 품질 속성
 

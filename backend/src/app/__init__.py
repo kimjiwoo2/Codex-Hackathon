@@ -1,0 +1,1 @@
+"""Codex Hackathon backend application."""
