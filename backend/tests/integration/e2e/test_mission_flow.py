@@ -34,7 +34,7 @@ from app.security.tokens import generate_opaque_token, hash_opaque_token
 
 JPG = b"\xff\xd8\xffdemo\xff\xd9"
 HOME = Coordinate(latitude=37.0, longitude=127.0)
-STORE = Coordinate(latitude=37.0002, longitude=127.0)
+STORE = Coordinate(latitude=37.001, longitude=127.0)
 
 
 @dataclass
@@ -87,14 +87,14 @@ class ForbiddenRoadVisionDouble(VisionDouble):
 
 
 def _routes() -> RoundTripRoutes:
-    midpoint = Coordinate(latitude=37.0001, longitude=127.0)
+    midpoint = Coordinate(latitude=37.0005, longitude=127.0)
     outbound = Route(
-        total_distance_m=22.0,
-        total_time_seconds=30,
+        total_distance_m=111.0,
+        total_time_seconds=120,
         points=(
             RoutePoint(**HOME.model_dump(), cumulative_distance_m=0),
-            RoutePoint(**midpoint.model_dump(), cumulative_distance_m=11),
-            RoutePoint(**STORE.model_dump(), cumulative_distance_m=22),
+            RoutePoint(**midpoint.model_dump(), cumulative_distance_m=55.5),
+            RoutePoint(**STORE.model_dump(), cumulative_distance_m=111),
         ),
         steps=(
             RouteStep(
@@ -107,24 +107,24 @@ def _routes() -> RoundTripRoutes:
                 index=1,
                 kind=RouteStepKind.CROSSWALK,
                 coordinate=midpoint,
-                cumulative_distance_m=11,
+                cumulative_distance_m=55.5,
                 is_crosswalk=True,
             ),
             RouteStep(
                 index=2,
                 kind=RouteStepKind.ARRIVE,
                 coordinate=STORE,
-                cumulative_distance_m=22,
+                cumulative_distance_m=111,
             ),
         ),
     )
     returning = Route(
-        total_distance_m=22.0,
-        total_time_seconds=30,
+        total_distance_m=111.0,
+        total_time_seconds=120,
         points=(
             RoutePoint(**STORE.model_dump(), cumulative_distance_m=0),
-            RoutePoint(**midpoint.model_dump(), cumulative_distance_m=11),
-            RoutePoint(**HOME.model_dump(), cumulative_distance_m=22),
+            RoutePoint(**midpoint.model_dump(), cumulative_distance_m=55.5),
+            RoutePoint(**HOME.model_dump(), cumulative_distance_m=111),
         ),
         steps=(
             RouteStep(
@@ -137,13 +137,13 @@ def _routes() -> RoundTripRoutes:
                 index=1,
                 kind=RouteStepKind.STRAIGHT,
                 coordinate=midpoint,
-                cumulative_distance_m=11,
+                cumulative_distance_m=55.5,
             ),
             RouteStep(
                 index=2,
                 kind=RouteStepKind.ARRIVE,
                 coordinate=HOME,
-                cumulative_distance_m=22,
+                cumulative_distance_m=111,
             ),
         ),
     )
@@ -233,15 +233,23 @@ async def test_real_create_app_completes_demo_e2e_with_shared_sqlite_graph(
             headers=child_headers,
         )
         assert guidance.status_code == 200
+        assert guidance.json()["status"] == "GOING"
         assert guidance.json()["instruction_code"] == "CROSSWALK_STOP"
 
-        for _ in range(2):
-            at_store = await client.post(
-                f"/missions/{mission['missionId']}/locations",
-                json=_location(STORE),
-                headers=child_headers,
-            )
-        assert at_store.json()["status"] == "SHOPPING"
+        store_first = await client.post(
+            f"/missions/{mission['missionId']}/locations",
+            json=_location(STORE),
+            headers=child_headers,
+        )
+        assert store_first.status_code == 200
+        assert store_first.json()["status"] == "GOING"
+        store_second = await client.post(
+            f"/missions/{mission['missionId']}/locations",
+            json=_location(STORE),
+            headers=child_headers,
+        )
+        assert store_second.status_code == 200
+        assert store_second.json()["status"] == "SHOPPING"
 
         road = await client.post(
             f"/missions/{mission['missionId']}/vision/road",
@@ -269,13 +277,20 @@ async def test_real_create_app_completes_demo_e2e_with_shared_sqlite_graph(
         assert returning.status_code == 200
         assert returning.json()["status"] == "RETURNING"
 
-        at_home = await client.post(
+        home_first = await client.post(
             f"/missions/{mission['missionId']}/locations",
             json=_location(HOME),
             headers=child_headers,
         )
-        assert at_home.status_code == 200
-        assert at_home.json()["status"] == "COMPLETED"
+        assert home_first.status_code == 200
+        assert home_first.json()["status"] == "RETURNING"
+        home_second = await client.post(
+            f"/missions/{mission['missionId']}/locations",
+            json=_location(HOME),
+            headers=child_headers,
+        )
+        assert home_second.status_code == 200
+        assert home_second.json()["status"] == "COMPLETED"
 
         snapshot = await client.get(
             f"/missions/{mission['missionId']}/snapshot", headers=parent_headers
