@@ -1,7 +1,7 @@
 # Backend
 
 가벼운 데모를 위한 FastAPI 기반 모놀리식 HTTP API입니다. 의존성·가상환경·잠금 파일은 `uv`로 관리합니다.
-현재 백엔드는 Neon Postgres, TMAP 보행 경로 API, OpenAI 비전 API, AWS Lambda(Function URL + Mangum) 배포를 기준으로 구현을 준비합니다.
+현재 백엔드는 Neon Postgres, TMAP 보행 경로 API, OpenAI 비전 API, AWS Lambda(Function URL + Mangum) 배포를 기준으로 통제된 데모를 제공합니다.
 
 ## 요구 사항
 
@@ -40,6 +40,23 @@ cp .env.example .env
 | `LOCATION_EVENT_COOLDOWN_SECONDS` | 부모 알림 중복 방지 시간 |
 | `MISSION_JOIN_CODE_TTL_MINUTES` | 참여 코드 유효 시간 |
 
+`APP_ENV=demo`는 해커톤 통제 데모 전용 모드입니다. 첫 mission API 요청에서만
+`Base.metadata.create_all()`로 세 테이블을 준비합니다. Lambda는 ASGI lifespan을 끄므로
+startup hook에 의존하지 않습니다. `production` 등 다른 환경에서는 애플리케이션이 schema를
+만들지 않으며, 배포자가 승인된 schema 절차를 수행해야 합니다.
+
+### 데모 고정 안전 기준
+
+이번 데모의 길안내는 경로 이탈 30m, 역방향 120도, 연속 유효 GPS 2회라는 고정 기준을
+사용합니다. 따라서 `LOCATION_OFF_ROUTE_METERS`, `LOCATION_WRONG_WAY_DEGREES`,
+`LOCATION_EVENT_COOLDOWN_SECONDS`는 현재 P0 서비스의 runtime override가 아닙니다. 값을
+바꿔도 데모 안전 기준을 넓히지 않으며, 임계값 변경은 별도 검증 범위에서만 수행합니다.
+
+도로 비전은 `STOP`, `CAUTION`, `UNKNOWN`만 반환합니다. OpenAI를 사용할 수 없으면
+`UNKNOWN`과 멈춰서 직접 확인하라는 고정 문구로 낮아지며, 횡단 허가 판단이나 원본 이미지는
+응답·이벤트·저장소에 남기지 않습니다. 시연은 보호자 동행과 식별정보가 없는 통제 이미지로
+제한합니다.
+
 ## 명령
 
 ```bash
@@ -69,7 +86,10 @@ tests/
 └── integration/   # 애플리케이션 경계를 통과하는 API 테스트
 ```
 
-`repositories/`는 데이터베이스 또는 외부 저장소를 감싸는 경계입니다. 구현 단계에서는 `services/`가 비즈니스 규칙을 소유하고 `integrations/`가 TMAP/OpenAI 호출을 캡슐화하도록 유지합니다.
+`main.create_app()`은 하나의 settings, engine, session factory, repository, 역할 token verifier,
+TMAP/OpenAI adapter 및 모든 feature service를 앱 수명 동안 공유하도록 조립합니다. import와
+`/health` 요청은 비밀값이나 DB 접속을 요구하지 않으며, 테스트는 SQLite와 typed adapter double을
+주입해 실제 라우터 조립 경로를 검증합니다.
 
 ## API 계약
 
@@ -97,4 +117,6 @@ tests/
 | `pytest`, `pytest-asyncio` | 비동기 서비스·API 테스트 |
 | `uvicorn` | 로컬 개발 서버 |
 
-현재 저장소에는 아직 데이터베이스 스키마, 외부 연동 구현, 마이그레이션, 시드 데이터가 없습니다. 이후 실제 기능을 추가할 때 이 문서와 `docs/spec.md`, `docs/architecture.md`를 함께 갱신합니다.
+외부 Neon·TMAP·OpenAI·AWS smoke는 해당 자격 증명과 승인된 Function URL이 있는 환경에서만
+수행합니다. 키나 endpoint를 issue, PR, 로그에 기록하지 않습니다. 자격 증명이 없을 때는 mock
+E2E 통과와 `SMOKE_BLOCKED_BY_ENV`를 분리해 기록합니다.
