@@ -1,4 +1,6 @@
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
+from math import isfinite
 from typing import Protocol
 
 from app.models import MissionStatus, RouteKind
@@ -15,6 +17,10 @@ LOCATION_STALE_AFTER_SECONDS = 15
 
 class ParentSnapshotNotFoundError(LookupError):
     """Raised when a parent asks for a mission that no longer exists."""
+
+
+class ParentSnapshotStateError(ValueError):
+    """Reject invalid persisted route state instead of concealing it in polling output."""
 
 
 class ParentSnapshotRepository(Protocol):
@@ -90,23 +96,48 @@ def _location_from(mission: object) -> ParentLocation | None:
 
 
 def _remaining_distance(mission: object) -> float:
-    progress_m = float(getattr(mission, "progress_m", 0.0))
-    if (
-        getattr(mission, "status") is MissionStatus.RETURNING
-        and getattr(mission, "current_route_kind") is RouteKind.OUTBOUND
-    ):
-        return round(max(0.0, progress_m), 1)
-
+    progress_m = _finite_nonnegative(getattr(mission, "progress_m", None), "progress_m")
     route = (
         getattr(mission, "return_route")
         if getattr(mission, "current_route_kind") is RouteKind.RETURNING
         else getattr(mission, "outbound_route")
     )
-    total_distance = route.get("totalDistanceM", route.get("total_distance_m", 0.0))
+    total_distance = _route_total_distance(route)
+    if (
+        getattr(mission, "status") is MissionStatus.RETURNING
+        and getattr(mission, "current_route_kind") is RouteKind.OUTBOUND
+    ):
+        return round(max(0.0, progress_m), 1)
+    return round(max(0.0, total_distance - progress_m), 1)
+
+
+def _route_total_distance(route: object) -> float:
+    if not isinstance(route, Mapping):
+        raise ParentSnapshotStateError("active route must be a mapping")
+    if "totalDistanceM" in route:
+        value = route["totalDistanceM"]
+    elif "total_distance_m" in route:
+        value = route["total_distance_m"]
+    else:
+        raise ParentSnapshotStateError("active route total distance is missing")
+    total_distance = _finite_nonnegative(value, "active route total distance")
+    if total_distance == 0:
+        raise ParentSnapshotStateError("active route total distance must be positive")
+    return total_distance
+
+
+def _finite_nonnegative(value: object, field_name: str) -> float:
+    if isinstance(value, bool):
+        raise ParentSnapshotStateError(f"{field_name} must be a finite non-negative number")
     try:
-        return round(max(0.0, float(total_distance) - progress_m), 1)
-    except (TypeError, ValueError):
-        return 0.0
+        number = float(value)
+    except (TypeError, ValueError) as error:
+        raise ParentSnapshotStateError(
+            f"{field_name} must be a finite non-negative number"
+        ) from error
+    if not isfinite(number) or number < 0:
+        raise ParentSnapshotStateError(f"{field_name} must be a finite non-negative number")
+    return number
 
 
 def _is_location_stale(last_location_at: datetime | None, now: datetime) -> bool:

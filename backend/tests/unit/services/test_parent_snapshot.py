@@ -6,7 +6,11 @@ import pytest
 
 from app.models import ItemVerdict, MissionEventType, MissionStatus, RouteKind
 from app.repositories import MissionAggregate
-from app.services.parent_snapshot import ParentSnapshotNotFoundError, ParentSnapshotService
+from app.services.parent_snapshot import (
+    ParentSnapshotNotFoundError,
+    ParentSnapshotService,
+    ParentSnapshotStateError,
+)
 
 
 def _aggregate(
@@ -119,6 +123,36 @@ def test_snapshot_uses_active_route_contract_for_remaining_distance(
     snapshot = ParentSnapshotService(repository).get_snapshot("mission-1", now=datetime.now(UTC))
 
     assert snapshot.remaining_distance_m == expected_distance
+
+
+@pytest.mark.parametrize(
+    "route",
+    [
+        {},
+        {"totalDistanceM": "not-a-number"},
+        {"total_distance_m": float("nan")},
+        {"totalDistanceM": float("inf")},
+    ],
+)
+def test_snapshot_rejects_malformed_active_route(route) -> None:
+    repository = Mock()
+    aggregate = _aggregate()
+    aggregate.mission.outbound_route = route
+    repository.get_aggregate.return_value = aggregate
+    repository.list_events.return_value = ()
+
+    with pytest.raises(ParentSnapshotStateError):
+        ParentSnapshotService(repository).get_snapshot("mission-1", now=datetime.now(UTC))
+
+
+@pytest.mark.parametrize("progress_m", [None, "not-a-number", float("nan"), float("inf"), -1])
+def test_snapshot_rejects_malformed_progress(progress_m) -> None:
+    repository = Mock()
+    repository.get_aggregate.return_value = _aggregate(progress_m=progress_m)
+    repository.list_events.return_value = ()
+
+    with pytest.raises(ParentSnapshotStateError):
+        ParentSnapshotService(repository).get_snapshot("mission-1", now=datetime.now(UTC))
 
 
 def test_snapshot_rejects_unknown_mission() -> None:
