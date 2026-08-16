@@ -34,6 +34,12 @@
         }
       ],
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "안전한 길 안내를 위해 심부름 중 현재 위치가 필요해요."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
