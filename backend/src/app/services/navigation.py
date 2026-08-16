@@ -187,7 +187,8 @@ class LocationService:
         location = Coordinate(latitude=request.latitude, longitude=request.longitude)
         home = Coordinate(latitude=mission.home_lat, longitude=mission.home_lng)
         reliable = request.accuracy_m <= _MAX_RELIABLE_ACCURACY_M
-        if reliable and haversine_meters(location, home) <= _ARRIVAL_DISTANCE_M:
+        distance_to_home_m = haversine_meters(location, home)
+        if reliable and distance_to_home_m <= _ARRIVAL_DISTANCE_M:
             return self._record_home_arrival_sample(mission, request)
 
         outbound = Route.model_validate(mission.outbound_route)
@@ -223,7 +224,7 @@ class LocationService:
             instruction_code=InstructionCode.LOCATION_UNCERTAIN,
             message="위치를 다시 확인하고 보호자와 함께 이동하세요.",
             vibration_hint=VibrationHint.ALERT,
-            remaining_distance_m=0,
+            remaining_distance_m=distance_to_home_m,
             off_route=False,
             wrong_way=False,
         )

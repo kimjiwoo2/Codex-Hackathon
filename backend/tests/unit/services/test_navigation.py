@@ -265,6 +265,7 @@ def test_zero_progress_return_with_poor_accuracy_never_completes() -> None:
 
     assert response.status == "RETURNING"
     assert response.instruction_code is InstructionCode.LOCATION_UNCERTAIN
+    assert response.remaining_distance_m > 0
 
 
 def test_early_return_preserves_crosswalk_for_stop_guidance_and_persistence() -> None:
