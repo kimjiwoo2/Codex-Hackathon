@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Codex-Hackathon",
-    "slug": "Codex-Hackathon",
+    "name": "아이캔",
+    "slug": "ican",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "codexhackathon",
+    "scheme": "ican",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -41,8 +41,7 @@
       ]
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     }
   }
 }

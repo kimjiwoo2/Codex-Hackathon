@@ -1,0 +1,15 @@
+export const ICanColors = {
+  ink: '#141517',
+  muted: '#797979',
+  subtle: '#9F9F9F',
+  border: '#E6E7E9',
+  paper: '#FFFFFF',
+  canvas: '#FAF7F1',
+  yellow: '#FFD66C',
+  yellowStrong: '#FFC44D',
+  green: '#A3B755',
+  greenDark: '#749F53',
+  lime: '#E0EBB0',
+  paleGreen: '#F0F4E4',
+  warning: '#E5A707',
+} as const;
