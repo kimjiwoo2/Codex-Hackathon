@@ -130,7 +130,7 @@ class LocationService:
         mission = self._repository.get_mission(mission_id)
         if mission is None:
             raise LookupError("mission not found")
-        route_kind, route = _active_route(mission)
+        route_kind, route, retracing_outbound = _active_route(mission)
         evaluation = self._navigation.evaluate(
             route=route,
             latitude=request.latitude,
@@ -154,7 +154,7 @@ class LocationService:
                 route_kind=route_kind,
                 step_index=evaluation.step_index,
                 step_kind=_persisted_step_kind(_step_for_index(route.steps, evaluation.step_index)),
-                progress_m=evaluation.progress_m,
+                progress_m=mission.progress_m if retracing_outbound else evaluation.progress_m,
                 off_route_streak=evaluation.off_route_streak,
                 wrong_way_streak=evaluation.wrong_way_streak,
                 arrival_streak=evaluation.arrival_streak,
@@ -337,11 +337,77 @@ def _make_guidance(
     )
 
 
-def _active_route(mission: object) -> tuple[RouteKind, Route]:
+def _active_route(mission: object) -> tuple[RouteKind, Route, bool]:
     status = getattr(mission, "status")
     if status is MissionStatus.RETURNING:
-        return RouteKind.RETURNING, Route.model_validate(getattr(mission, "return_route"))
-    return RouteKind.OUTBOUND, Route.model_validate(getattr(mission, "outbound_route"))
+        outbound = Route.model_validate(getattr(mission, "outbound_route"))
+        if getattr(mission, "progress_m") < outbound.total_distance_m - _ARRIVAL_DISTANCE_M:
+            return (
+                RouteKind.RETURNING,
+                _reverse_outbound_to_progress(outbound, mission.progress_m),
+                True,
+            )
+        return RouteKind.RETURNING, Route.model_validate(getattr(mission, "return_route")), False
+    return RouteKind.OUTBOUND, Route.model_validate(getattr(mission, "outbound_route")), False
+
+
+def _reverse_outbound_to_progress(route: Route, progress_m: float) -> Route:
+    """Guide an early return over the travelled outbound section, never via the store."""
+    capped_progress = min(max(progress_m, 0.0), route.total_distance_m)
+    travelled = [point for point in route.points if point.cumulative_distance_m < capped_progress]
+    travelled.append(_point_at_progress(route.points, capped_progress))
+    reversed_points = list(reversed(travelled))
+    total_distance = capped_progress
+    points = tuple(
+        RoutePoint(
+            longitude=point.longitude,
+            latitude=point.latitude,
+            cumulative_distance_m=total_distance - point.cumulative_distance_m,
+        )
+        for point in reversed_points
+    )
+    if len(points) < 2:
+        points = (
+            RoutePoint(
+                longitude=route.points[1].longitude,
+                latitude=route.points[1].latitude,
+                cumulative_distance_m=0,
+            ),
+            RoutePoint(
+                longitude=route.points[0].longitude,
+                latitude=route.points[0].latitude,
+                cumulative_distance_m=total_distance,
+            ),
+        )
+    return Route(
+        total_distance_m=total_distance,
+        total_time_seconds=0,
+        points=points,
+        steps=(
+            RouteStep(
+                index=0, kind=RouteStepKind.START, coordinate=points[0], cumulative_distance_m=0
+            ),
+            RouteStep(
+                index=1,
+                kind=RouteStepKind.ARRIVE,
+                coordinate=points[-1],
+                cumulative_distance_m=total_distance,
+            ),
+        ),
+    )
+
+
+def _point_at_progress(points: tuple[RoutePoint, ...], progress_m: float) -> RoutePoint:
+    for start, end in zip(points, points[1:]):
+        if start.cumulative_distance_m <= progress_m <= end.cumulative_distance_m:
+            span = end.cumulative_distance_m - start.cumulative_distance_m
+            ratio = 0.0 if span == 0 else (progress_m - start.cumulative_distance_m) / span
+            return RoutePoint(
+                longitude=start.longitude + (end.longitude - start.longitude) * ratio,
+                latitude=start.latitude + (end.latitude - start.latitude) * ratio,
+                cumulative_distance_m=progress_m,
+            )
+    return points[-1]
 
 
 def _persisted_step_kind(step: RouteStep) -> PersistedRouteStepKind:

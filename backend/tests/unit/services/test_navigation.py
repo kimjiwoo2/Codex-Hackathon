@@ -168,6 +168,7 @@ def test_location_service_uses_return_route_only_after_returning_status() -> Non
         status=MissionStatus.RETURNING,
         outbound_route=_route().model_dump(mode="json"),
         return_route=_route().model_dump(mode="json"),
+        progress_m=100,
     )
     response = LocationService(repository).update(
         "mission-1",
@@ -185,13 +186,13 @@ def test_location_service_uses_return_route_only_after_returning_status() -> Non
 
 
 class _RepositoryStub:
-    def __init__(self, *, status, outbound_route, return_route) -> None:
+    def __init__(self, *, status, outbound_route, return_route, progress_m=0) -> None:
         self.mission = SimpleNamespace(
             id="mission-1",
             status=status,
             outbound_route=outbound_route,
             return_route=return_route,
-            progress_m=0,
+            progress_m=progress_m,
             off_route_streak=0,
             wrong_way_streak=0,
             arrival_streak=0,
