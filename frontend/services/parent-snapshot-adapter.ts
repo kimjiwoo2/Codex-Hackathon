@@ -38,6 +38,18 @@ export class ParentSnapshotRequestError extends Error {
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
+export function isParentSnapshotCredentialReady(
+  missionId: string | undefined,
+  parentToken: string | undefined,
+): missionId is string {
+  return Boolean(
+    missionId &&
+      parentToken &&
+      !missionId.startsWith('demo-') &&
+      !parentToken.startsWith('mock-'),
+  );
+}
+
 function apiBaseUrl(): string {
   const value = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
   if (!value) {
@@ -52,6 +64,9 @@ export async function fetchParentSnapshot(
   afterEventId: number,
   request: FetchLike = fetch,
 ): Promise<ParentSnapshot> {
+  if (!isParentSnapshotCredentialReady(missionId, parentToken)) {
+    throw new ParentSnapshotRequestError('실제 미션 연결 후 위치를 확인할 수 있습니다.');
+  }
   const url = `${apiBaseUrl()}/missions/${encodeURIComponent(missionId)}/snapshot?afterEventId=${afterEventId}`;
   const response = await request(url, {
     headers: { Authorization: `Bearer ${parentToken}` },
@@ -78,4 +93,47 @@ export function applySnapshot(
     cursor: Math.max(current.cursor, snapshot.nextEventId),
     events: [...eventsById.values()].sort((left, right) => left.eventId - right.eventId),
   };
+}
+
+type SnapshotFetcher = (afterEventId: number) => Promise<ParentSnapshot>;
+
+export type ParentSnapshotRefreshResult =
+  | { kind: 'updated'; snapshot: ParentSnapshot; polling: ParentSnapshotPollingState }
+  | { kind: 'error'; error: unknown }
+  | { kind: 'skipped' };
+
+/** Serializes a credential session's requests and makes disposed responses inert. */
+export class ParentSnapshotPollingController {
+  private active = true;
+  private inFlight = false;
+
+  constructor(
+    private polling: ParentSnapshotPollingState,
+    private readonly fetchSnapshot: SnapshotFetcher,
+  ) {}
+
+  get current(): ParentSnapshotPollingState {
+    return this.polling;
+  }
+
+  dispose() {
+    this.active = false;
+  }
+
+  async refresh(): Promise<ParentSnapshotRefreshResult> {
+    if (!this.active || this.inFlight) return { kind: 'skipped' };
+
+    this.inFlight = true;
+    try {
+      const snapshot = await this.fetchSnapshot(this.polling.cursor);
+      if (!this.active) return { kind: 'skipped' };
+
+      this.polling = applySnapshot(this.polling, snapshot);
+      return { kind: 'updated', snapshot, polling: this.polling };
+    } catch (error) {
+      return this.active ? { kind: 'error', error } : { kind: 'skipped' };
+    } finally {
+      this.inFlight = false;
+    }
+  }
 }

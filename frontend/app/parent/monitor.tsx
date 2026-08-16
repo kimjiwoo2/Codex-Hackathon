@@ -35,7 +35,9 @@ export default function MonitorScreen() {
         <View style={styles.locationCard}>
           <Ionicons color={ICanColors.greenDark} name="location" size={48} />
           <View style={styles.locationCopy}>
-            <Text style={styles.locationTitle}>{hasLocation ? '아이 위치가 업데이트되었습니다' : '아이 위치를 기다리는 중'}</Text>
+            <Text style={styles.locationTitle}>
+              {hasLocation ? `${snapshot.location?.latitude.toFixed(5)}, ${snapshot.location?.longitude.toFixed(5)}` : '아이 위치를 기다리는 중'}
+            </Text>
             <Text style={styles.locationMeta}>
               남은 거리 <Text style={styles.distance}>{distance}</Text>
             </Text>
