@@ -7,6 +7,7 @@ import { ChildMissionCard } from '@/components/ican/child-mission-card';
 import { Screen } from '@/components/ican/screen';
 import { useChildAutoNavigation } from '@/features/child/use-child-auto-navigation';
 import { useChildJourney } from '@/features/child/child-journey-context';
+import { useChildMission } from '@/features/child/child-mission-context';
 import { useChildLocation } from '@/features/child/use-child-location';
 
 function JourneyHeadline({ stage }: { stage: ReturnType<typeof useChildJourney>['stage'] }) {
@@ -23,6 +24,12 @@ export default function ChildHomeScreen() {
   const { advance, setStage, stage } = useChildJourney();
   const { location, retry: retryLocation, status: locationStatus } = useChildLocation();
   useChildAutoNavigation({ location, setStage, stage });
+  const { selectedItem, session } = useChildMission();
+
+  if (!session || !selectedItem) {
+    router.replace('/child/join');
+    return null;
+  }
 
   return (
     <Screen bottomInset={false} contentStyle={styles.screen}>
@@ -36,6 +43,8 @@ export default function ChildHomeScreen() {
             setStage('ARRIVED');
             router.push('/child/camera');
           }}
+          itemDetails={[selectedItem.brand, selectedItem.size].filter(Boolean).join(' · ')}
+          itemName={selectedItem.name}
           stage={stage}
         />
         {stage === 'STOP' ? (

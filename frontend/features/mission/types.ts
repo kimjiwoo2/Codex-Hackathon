@@ -15,6 +15,9 @@ export type MissionItem = {
   verified: boolean;
 };
 
+export type ItemVerdict = 'MATCH' | 'SIMILAR' | 'MISMATCH' | 'UNKNOWN';
+export type MissionItemDto = { itemId: string; name: string; brand: string | null; size: string | null; verdict: ItemVerdict; detectedLabel: string | null };
+
 export type MissionDraft = {
   home: MissionCoordinate;
   store: MissionCoordinate;
@@ -36,6 +39,7 @@ export type CreateMissionResult = {
   joinCode: string;
   joinCodeExpiresAt: string;
   parentToken: string;
+  items: MissionItemDto[];
 };
 
 export interface JoinMissionResult extends Record<string, unknown> {
@@ -44,4 +48,7 @@ export interface JoinMissionResult extends Record<string, unknown> {
   status: MissionStatus;
   instructionCode: string;
   message: string;
+  items: MissionItemDto[];
 }
+
+export type ItemVerificationResult = { verdict: ItemVerdict; message: string; detectedLabel: string | null; status: 'SHOPPING' | 'RETURNING' };

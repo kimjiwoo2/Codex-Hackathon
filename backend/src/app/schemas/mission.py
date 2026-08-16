@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models import MissionStatus
+from app.models import ItemVerdict, MissionStatus
 from app.schemas.navigation.route import Coordinate
 
 
@@ -21,6 +21,17 @@ class MissionItemRequest(_CamelCaseModel):
     size: str | None = Field(default=None, max_length=100)
 
 
+class MissionItemResponse(_CamelCaseModel):
+    """Canonical persisted item identity and child-safe verification state."""
+
+    item_id: str
+    name: str
+    brand: str | None = None
+    size: str | None = None
+    verdict: ItemVerdict
+    detected_label: str | None = None
+
+
 class CreateMissionRequest(_CamelCaseModel):
     home: Coordinate
     store: Coordinate
@@ -32,6 +43,7 @@ class CreateMissionResponse(_CamelCaseModel):
     join_code: str = Field(pattern=r"^\d{6}$")
     join_code_expires_at: str
     parent_token: str
+    items: tuple[MissionItemResponse, ...]
 
 
 class JoinMissionRequest(_CamelCaseModel):
@@ -44,6 +56,7 @@ class JoinMissionResponse(_CamelCaseModel):
     status: Literal[MissionStatus.GOING]
     instruction_code: str
     message: str
+    items: tuple[MissionItemResponse, ...]
 
 
 class ReturnHomeResponse(_CamelCaseModel):

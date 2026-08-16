@@ -55,6 +55,7 @@ class HttpMissionAdapter implements MissionAdapter {
       joinCode: readJoinCode(payload, ['joinCode', 'join_code']),
       joinCodeExpiresAt: readIsoTimestamp(payload, ['joinCodeExpiresAt', 'join_code_expires_at']),
       parentToken: readString(payload, ['parentToken', 'parent_token']),
+      items: readItems(payload),
     };
   }
 
@@ -73,6 +74,7 @@ class HttpMissionAdapter implements MissionAdapter {
       status: readString(payload, ['status']) as JoinMissionResult['status'],
       instructionCode: readString(payload, ['instructionCode', 'instruction_code']),
       message: readString(payload, ['message']),
+      items: readItems(payload),
     };
   }
 }
@@ -207,3 +209,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export const missionAdapter: MissionAdapter = new HttpMissionAdapter();
+
+function readItems(payload: Record<string, unknown>) {
+  if (!Array.isArray(payload.items)) throw new MissionAdapterError('MISSION_API_RESPONSE_INVALID', '서버 응답에 상품 목록이 없습니다.');
+  return payload.items as CreateMissionResult['items'];
+}
+
+export const childMissionApi = {
+  join: (joinCode: string) => missionAdapter.joinMission(joinCode),
+  async verifyItem(missionId: string, itemId: string, childToken: string, imageUri: string) {
+    const form = new FormData();
+    form.append('image', { uri: imageUri, name: 'item.jpg', type: 'image/jpeg' } as never);
+    let response: Response;
+    try { response = await fetch(`${apiBaseUrl}/missions/${missionId}/items/${itemId}/verify`, { method: 'POST', headers: { Authorization: `Bearer ${childToken}` }, body: form }); }
+    catch { throw new MissionAdapterError('MISSION_API_REQUEST_FAILED', '서버에 연결하지 못했어요. 네트워크를 확인해 주세요.'); }
+    const body = await readResponseBody(response);
+    const payload = isRecord(body) ? body : {};
+    if (!response.ok) throw new MissionAdapterError('MISSION_API_REQUEST_FAILED', (payload as ErrorEnvelope).error?.message as string || '상품 확인에 실패했어요.', response.status);
+    return payload as import('@/features/mission/types').ItemVerificationResult;
+  },
+};
