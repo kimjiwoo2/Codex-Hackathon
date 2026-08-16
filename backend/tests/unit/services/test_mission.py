@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from app.core.errors import AppError
-from app.models import MissionStatus
+from app.models import MissionStatus, RouteKind
 from app.repositories.missions import MissionAggregate
 from app.schemas.mission import CreateMissionRequest, JoinMissionRequest
 from app.schemas.navigation.route import (
@@ -137,7 +137,13 @@ def test_join_consumes_code_once_and_returns_first_instruction() -> None:
 def test_return_home_allows_going_and_preserves_outbound_progress_for_retrace() -> None:
     repository = Mock()
     repository.get_mission.return_value = type(
-        "Mission", (), {"status": MissionStatus.GOING, "progress_m": 84.5}
+        "Mission",
+        (),
+        {
+            "status": MissionStatus.GOING,
+            "progress_m": 84.5,
+            "current_route_kind": RouteKind.OUTBOUND,
+        },
     )()
     repository.update_status.return_value = type("Mission", (), {})()
     service = MissionService(
@@ -149,7 +155,55 @@ def test_return_home_allows_going_and_preserves_outbound_progress_for_retrace() 
     assert response.status is MissionStatus.RETURNING
     assert response.return_strategy == "RETRACE_OUTBOUND_FROM_PROGRESS"
     assert response.outbound_progress_m == 84.5
-    repository.update_status.assert_called_once_with("mission-1", MissionStatus.RETURNING)
+    repository.update_status.assert_called_once_with(
+        "mission-1", MissionStatus.RETURNING, route_kind=RouteKind.OUTBOUND
+    )
+
+
+def test_return_home_from_shopping_persists_cached_return_authority() -> None:
+    repository = Mock()
+    repository.get_mission.return_value = type(
+        "Mission",
+        (),
+        {
+            "status": MissionStatus.SHOPPING,
+            "progress_m": 120.0,
+            "current_route_kind": RouteKind.OUTBOUND,
+        },
+    )()
+    service = MissionService(
+        repository=repository, tmap_client=AsyncMock(), join_code_ttl_minutes=30
+    )
+
+    response = service.return_home("mission-1")
+
+    assert response.return_strategy == "USE_CACHED_RETURN_ROUTE"
+    repository.update_status.assert_called_once_with(
+        "mission-1", MissionStatus.RETURNING, route_kind=RouteKind.RETURNING
+    )
+
+
+def test_idempotent_return_home_preserves_existing_route_authority() -> None:
+    repository = Mock()
+    repository.get_mission.return_value = type(
+        "Mission",
+        (),
+        {
+            "status": MissionStatus.RETURNING,
+            "progress_m": 40.0,
+            "current_route_kind": RouteKind.OUTBOUND,
+        },
+    )()
+    service = MissionService(
+        repository=repository, tmap_client=AsyncMock(), join_code_ttl_minutes=30
+    )
+
+    response = service.return_home("mission-1")
+
+    assert response.return_strategy == "RETRACE_OUTBOUND_FROM_PROGRESS"
+    repository.update_status.assert_called_once_with(
+        "mission-1", MissionStatus.RETURNING, route_kind=RouteKind.OUTBOUND
+    )
 
 
 @pytest.mark.parametrize("status", [MissionStatus.WAITING, MissionStatus.COMPLETED])

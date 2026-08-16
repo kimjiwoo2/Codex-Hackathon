@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
 from app.core.errors import AppError
-from app.models import MissionStatus
+from app.models import MissionStatus, RouteKind
 from app.models import RouteStepKind as MissionRouteStepKind
 from app.repositories.missions import MissionItemSeed, MissionSeed
 from app.schemas.mission import (
@@ -31,7 +31,9 @@ class MissionRepositoryProtocol(Protocol):
 
     def consume_join_code(self, mission_id: str, *, child_token_hash: str) -> bool: ...
 
-    def update_status(self, mission_id: str, status: MissionStatus): ...
+    def update_status(
+        self, mission_id: str, status: MissionStatus, *, route_kind: RouteKind | None = None
+    ): ...
 
 
 class TmapClientProtocol(Protocol):
@@ -131,16 +133,27 @@ class MissionService:
                 status_code=409,
             )
 
-        # While GOING, BE-05 must retrace the recorded outbound progress before using the
-        # store-to-home cache.  `progress_m` remains untouched by this status-only update.
-        self._repository.update_status(mission_id, MissionStatus.RETURNING)
-        strategy = (
-            "RETRACE_OUTBOUND_FROM_PROGRESS"
-            if mission.status is MissionStatus.GOING
-            else "USE_CACHED_RETURN_ROUTE"
-        )
+        route_kind = _return_route_kind(mission.status, mission.current_route_kind)
+        self._repository.update_status(mission_id, MissionStatus.RETURNING, route_kind=route_kind)
+        strategy = _return_strategy(route_kind)
         return ReturnHomeResponse(
             status=MissionStatus.RETURNING,
             return_strategy=strategy,
             outbound_progress_m=mission.progress_m,
         )
+
+
+def _return_route_kind(status: MissionStatus, current_route_kind: RouteKind) -> RouteKind:
+    if status is MissionStatus.GOING:
+        return RouteKind.OUTBOUND
+    if status is MissionStatus.SHOPPING:
+        return RouteKind.RETURNING
+    return current_route_kind
+
+
+def _return_strategy(route_kind: RouteKind) -> str:
+    return (
+        "RETRACE_OUTBOUND_FROM_PROGRESS"
+        if route_kind is RouteKind.OUTBOUND
+        else "USE_CACHED_RETURN_ROUTE"
+    )
