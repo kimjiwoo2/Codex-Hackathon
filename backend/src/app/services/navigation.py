@@ -136,7 +136,9 @@ class LocationService:
             and mission.current_route_kind is RouteKind.OUTBOUND
             and mission.progress_m <= _HOME_PROGRESS_EPSILON_M
         ):
-            return self._complete_early_return_at_home(mission, request)
+            zero_progress_response = self._handle_zero_progress_return(mission, request)
+            if zero_progress_response is not None:
+                return zero_progress_response
         route_kind, route, retracing_outbound = _active_route(mission)
         evaluation = self._navigation.evaluate(
             route=route,
@@ -179,9 +181,23 @@ class LocationService:
         if mission.wrong_way_streak < _DEBOUNCE_SAMPLES <= evaluation.wrong_way_streak:
             self._repository.append_event(mission.id, MissionEventType.WRONG_WAY)
 
-    def _complete_early_return_at_home(
+    def _handle_zero_progress_return(
         self, mission: object, request: LocationRequest
-    ) -> LocationResponse:
+    ) -> LocationResponse | None:
+        location = Coordinate(latitude=request.latitude, longitude=request.longitude)
+        home = Coordinate(latitude=mission.home_lat, longitude=mission.home_lng)
+        reliable = request.accuracy_m <= _MAX_RELIABLE_ACCURACY_M
+        if reliable and haversine_meters(location, home) <= _ARRIVAL_DISTANCE_M:
+            return self._record_home_arrival_sample(mission, request)
+
+        outbound = Route.model_validate(mission.outbound_route)
+        _, inferred_progress_m, distance_to_route_m = nearest_route_position(
+            outbound.points, location
+        )
+        if reliable and distance_to_route_m <= _OFF_ROUTE_DISTANCE_M:
+            mission.progress_m = max(inferred_progress_m, _HOME_PROGRESS_EPSILON_M + 0.1)
+            return None
+
         updated = self._repository.update_location(
             mission.id,
             LocationUpdate(
@@ -192,22 +208,66 @@ class LocationService:
                 heading_deg=request.heading_deg,
                 speed_mps=request.speed_mps,
                 route_kind=RouteKind.OUTBOUND,
-                step_index=0,
-                step_kind=PersistedRouteStepKind.ARRIVAL,
+                step_index=mission.current_step_index,
+                step_kind=mission.current_step_kind,
                 progress_m=0,
                 off_route_streak=0,
                 wrong_way_streak=0,
-                arrival_streak=_DEBOUNCE_SAMPLES,
+                arrival_streak=0,
             ),
         )
         if updated is None:
             raise LookupError("mission not found")
-        status = _advance_arrival(self._repository, updated, arrived=True)
         return LocationResponse(
-            status=status.value,
-            instruction_code=InstructionCode.ARRIVED,
-            message="집에 도착했어요.",
-            vibration_hint=VibrationHint.ARRIVAL,
+            status=MissionStatus.RETURNING.value,
+            instruction_code=InstructionCode.LOCATION_UNCERTAIN,
+            message="위치를 다시 확인하고 보호자와 함께 이동하세요.",
+            vibration_hint=VibrationHint.ALERT,
+            remaining_distance_m=0,
+            off_route=False,
+            wrong_way=False,
+        )
+
+    def _record_home_arrival_sample(
+        self, mission: object, request: LocationRequest
+    ) -> LocationResponse:
+        arrival_streak = mission.arrival_streak + 1
+        updated = self._repository.update_location(
+            mission.id,
+            LocationUpdate(
+                lat=request.latitude,
+                lng=request.longitude,
+                observed_at=request.observed_at,
+                accuracy_m=request.accuracy_m,
+                heading_deg=request.heading_deg,
+                speed_mps=request.speed_mps,
+                route_kind=RouteKind.OUTBOUND,
+                step_index=mission.current_step_index,
+                step_kind=PersistedRouteStepKind.ARRIVAL,
+                progress_m=0,
+                off_route_streak=0,
+                wrong_way_streak=0,
+                arrival_streak=arrival_streak,
+            ),
+        )
+        if updated is None:
+            raise LookupError("mission not found")
+        if arrival_streak >= _DEBOUNCE_SAMPLES:
+            status = _advance_arrival(self._repository, updated, arrived=True)
+            return LocationResponse(
+                status=status.value,
+                instruction_code=InstructionCode.ARRIVED,
+                message="집에 도착했어요.",
+                vibration_hint=VibrationHint.ARRIVAL,
+                remaining_distance_m=0,
+                off_route=False,
+                wrong_way=False,
+            )
+        return LocationResponse(
+            status=MissionStatus.RETURNING.value,
+            instruction_code=InstructionCode.CONTINUE,
+            message="집 근처에 있어요. 위치를 한 번 더 확인하세요.",
+            vibration_hint=VibrationHint.ALERT,
             remaining_distance_m=0,
             off_route=False,
             wrong_way=False,

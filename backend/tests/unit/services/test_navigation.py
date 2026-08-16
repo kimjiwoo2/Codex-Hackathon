@@ -191,7 +191,35 @@ def test_location_service_uses_return_route_only_after_returning_status() -> Non
     assert repository.location_updates[0].route_kind.value == "RETURNING"
 
 
-def test_early_return_at_zero_progress_completes_at_home_without_route_validation_error() -> None:
+def test_early_return_at_zero_progress_requires_two_home_samples_before_completion() -> None:
+    repository = _RepositoryStub(
+        status=MissionStatus.RETURNING,
+        outbound_route=_route().model_dump(mode="json"),
+        return_route=_route().model_dump(mode="json"),
+        progress_m=0,
+    )
+
+    request = LocationRequest(
+        latitude=37.0,
+        longitude=126.0,
+        accuracy_m=5,
+        heading_deg=90,
+        observed_at=datetime.now(UTC),
+    )
+    first = LocationService(repository).update(
+        "mission-1",
+        request,
+    )
+    second = LocationService(repository).update("mission-1", request)
+
+    assert first.status == "RETURNING"
+    assert first.instruction_code is not InstructionCode.ARRIVED
+    assert second.status == "COMPLETED"
+    assert second.instruction_code is InstructionCode.ARRIVED
+    assert repository.location_updates[0].step_kind is PersistedRouteStepKind.ARRIVAL
+
+
+def test_zero_progress_return_far_from_home_recovers_outbound_progress_without_completion() -> None:
     repository = _RepositoryStub(
         status=MissionStatus.RETURNING,
         outbound_route=_route().model_dump(mode="json"),
@@ -203,16 +231,40 @@ def test_early_return_at_zero_progress_completes_at_home_without_route_validatio
         "mission-1",
         LocationRequest(
             latitude=37.0,
-            longitude=126.0,
+            longitude=126.001,
             accuracy_m=5,
-            heading_deg=90,
+            heading_deg=270,
             observed_at=datetime.now(UTC),
         ),
     )
 
-    assert response.status == "COMPLETED"
-    assert response.instruction_code is InstructionCode.ARRIVED
-    assert repository.location_updates[0].step_kind is PersistedRouteStepKind.ARRIVAL
+    assert response.status == "RETURNING"
+    assert response.instruction_code is not InstructionCode.ARRIVED
+    assert repository.location_updates[0].progress_m > 30
+    assert repository.location_updates[0].route_kind is RouteKind.OUTBOUND
+
+
+def test_zero_progress_return_with_poor_accuracy_never_completes() -> None:
+    repository = _RepositoryStub(
+        status=MissionStatus.RETURNING,
+        outbound_route=_route().model_dump(mode="json"),
+        return_route=_route().model_dump(mode="json"),
+        progress_m=0,
+    )
+
+    response = LocationService(repository).update(
+        "mission-1",
+        LocationRequest(
+            latitude=37.0,
+            longitude=126.001,
+            accuracy_m=31,
+            heading_deg=270,
+            observed_at=datetime.now(UTC),
+        ),
+    )
+
+    assert response.status == "RETURNING"
+    assert response.instruction_code is InstructionCode.LOCATION_UNCERTAIN
 
 
 def test_early_return_preserves_crosswalk_for_stop_guidance_and_persistence() -> None:
@@ -320,6 +372,10 @@ class _RepositoryStub:
             outbound_route=outbound_route,
             return_route=return_route,
             current_route_kind=current_route_kind,
+            home_lat=37.0,
+            home_lng=126.0,
+            current_step_index=0,
+            current_step_kind=PersistedRouteStepKind.UNKNOWN,
             progress_m=progress_m,
             off_route_streak=0,
             wrong_way_streak=0,
