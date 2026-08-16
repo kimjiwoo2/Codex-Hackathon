@@ -9,6 +9,7 @@ from app.schemas.vision.item import ItemVerificationResponse
 from app.services.item_vision import (
     MAX_ITEM_IMAGE_BYTES,
     InvalidItemImageError,
+    InvalidItemVerificationStateError,
     ItemNotFoundError,
     ItemVisionService,
 )
@@ -62,6 +63,12 @@ async def verify_item(
             code="ITEM_NOT_FOUND",
             message="요청한 상품을 찾을 수 없습니다.",
             status_code=404,
+        ) from None
+    except InvalidItemVerificationStateError:
+        raise AppError(
+            code="INVALID_STATUS_TRANSITION",
+            message="상품 확인은 마트에 도착한 뒤에 할 수 있습니다.",
+            status_code=409,
         ) from None
     except InvalidItemImageError:
         raise AppError(

@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Protocol
 
 from app.integrations.openai import VisionUnavailable
-from app.models import ItemVerdict
+from app.models import ItemVerdict, MissionEventType, MissionStatus
 from app.repositories import ItemVerification, MissionAggregate
 from app.schemas.common import RolePrincipal
 from app.schemas.vision.common import ProductVisionResult
@@ -26,6 +26,10 @@ class ItemNotFoundError(LookupError):
     """Avoid revealing whether an item belongs to another mission."""
 
 
+class InvalidItemVerificationStateError(ValueError):
+    """Allow product verification only after the child has arrived at the store."""
+
+
 class ItemVisionRepository(Protocol):
     def get_aggregate(self, mission_id: str) -> MissionAggregate | None: ...
 
@@ -35,6 +39,13 @@ class ItemVisionRepository(Protocol):
         item_id: str,
         verification: ItemVerification,
     ) -> object | None: ...
+
+    def append_event(
+        self,
+        mission_id: str,
+        event_type: MissionEventType,
+        payload: dict[str, str],
+    ) -> object: ...
 
 
 class ProductVisionClient(Protocol):
@@ -81,6 +92,8 @@ class ItemVisionService:
         aggregate = self._repository.get_aggregate(mission_id)
         if aggregate is None:
             raise ItemNotFoundError(item_id)
+        if aggregate.mission.status is not MissionStatus.SHOPPING:
+            raise InvalidItemVerificationStateError("item verification requires SHOPPING status")
         item = next((candidate for candidate in aggregate.items if candidate.id == item_id), None)
         if item is None:
             raise ItemNotFoundError(item_id)
@@ -110,6 +123,11 @@ class ItemVisionService:
                 description=description,
                 verified_at=verified_at,
             ),
+        )
+        self._repository.append_event(
+            mission_id,
+            MissionEventType.ITEM_VERIFIED,
+            {"itemId": item_id, "verdict": verdict.value},
         )
 
         if _all_items_match(aggregate, item_id=item_id, new_verdict=verdict):

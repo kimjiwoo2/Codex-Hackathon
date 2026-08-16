@@ -68,6 +68,11 @@ async def test_verify_item_returns_fixed_contract_and_never_persists_upload(
         "detectedLabel": "서울우유 1L",
     }
     vision_client.analyze_product.assert_awaited_once()
+    repository.append_event.assert_called_once_with(
+        "mission-1",
+        "ITEM_VERIFIED",
+        {"itemId": "item-1", "verdict": "MATCH"},
+    )
     assert b"\xff\xd8\xffsample\xff\xd9" not in repository.mock_calls
 
 
@@ -88,6 +93,27 @@ async def test_verify_item_rejects_non_jpeg_before_vision_call(
     assert response.json()["error"]["code"] == "INVALID_ITEM_IMAGE"
     repository.update_item_verification.assert_not_called()
     vision_client.analyze_product.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_verify_item_rejects_non_shopping_mission_before_vision_or_persistence(
+    item_api: tuple[FastAPI, Mock, AsyncMock],
+) -> None:
+    app, repository, vision_client = item_api
+    repository.get_aggregate.return_value.mission.status = MissionStatus.GOING
+    async with AsyncClient(
+        transport=ASGITransport(app=app, raise_app_exceptions=False), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            "/missions/mission-1/items/item-1/verify",
+            files={"image": ("milk.jpg", b"\xff\xd8\xffsample\xff\xd9", "image/jpeg")},
+        )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "INVALID_STATUS_TRANSITION"
+    vision_client.analyze_product.assert_not_awaited()
+    repository.update_item_verification.assert_not_called()
+    repository.append_event.assert_not_called()
 
 
 @pytest.mark.anyio

@@ -5,15 +5,22 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from app.integrations.openai import VisionUnavailable
-from app.models import ItemVerdict, MissionStatus
+from app.models import ItemVerdict, MissionEventType, MissionStatus
 from app.repositories import MissionAggregate
 from app.schemas.common import MissionRole, RolePrincipal
 from app.schemas.vision.common import ProductVisionAnalysis, ProductVisionResult
-from app.services.item_vision import InvalidItemImageError, ItemVisionService
+from app.services.item_vision import (
+    InvalidItemImageError,
+    InvalidItemVerificationStateError,
+    ItemVisionService,
+)
 
 
-def _aggregate(*verdicts: ItemVerdict) -> MissionAggregate:
-    mission = SimpleNamespace(id="mission-1", status=MissionStatus.SHOPPING)
+def _aggregate(
+    *verdicts: ItemVerdict,
+    status: MissionStatus = MissionStatus.SHOPPING,
+) -> MissionAggregate:
+    mission = SimpleNamespace(id="mission-1", status=status)
     items = tuple(
         SimpleNamespace(
             id=f"item-{index}",
@@ -106,6 +113,11 @@ async def test_verifies_product_with_fixed_message_and_persists_safe_fields(
     persisted = repository.update_item_verification.call_args.args[2]
     assert persisted.verdict is expected
     assert persisted.description == analysis.description
+    repository.append_event.assert_called_once_with(
+        "mission-1",
+        MissionEventType.ITEM_VERIFIED,
+        {"itemId": "item-1", "verdict": expected.value},
+    )
     assert b"\xff\xd8\xffsample\xff\xd9" not in repository.mock_calls
 
 
@@ -125,6 +137,7 @@ async def test_unknown_model_result_is_clamped_and_vision_failure_is_unknown() -
     assert response.verdict is ItemVerdict.UNKNOWN
     assert response.message == "상품을 확인하지 못했어요. 다시 비추거나 부모님께 물어봐요."
     assert repository.update_item_verification.call_args.args[2].description == "free form"
+    assert repository.append_event.call_args.args[2] == {"itemId": "item-1", "verdict": "UNKNOWN"}
 
 
 @pytest.mark.anyio
@@ -145,6 +158,7 @@ async def test_vision_failure_is_stored_as_unknown_without_adapter_text() -> Non
     assert response.detected_label is None
     persisted = repository.update_item_verification.call_args.args[2]
     assert persisted.description is None
+    assert repository.append_event.call_args.args[2] == {"itemId": "item-1", "verdict": "UNKNOWN"}
 
 
 @pytest.mark.anyio
@@ -162,6 +176,38 @@ async def test_all_matching_items_request_safe_return_home_transition() -> None:
     )
 
     mission_service.return_home.assert_called_once_with("mission-1")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "status",
+    [
+        MissionStatus.WAITING,
+        MissionStatus.GOING,
+        MissionStatus.RETURNING,
+        MissionStatus.COMPLETED,
+    ],
+)
+async def test_rejects_verification_outside_shopping_without_external_or_database_work(
+    status: MissionStatus,
+) -> None:
+    service, repository, vision_client, mission_service = _service(
+        analysis=ProductVisionAnalysis(result="MATCH", description="match"),
+        aggregate=_aggregate(ItemVerdict.UNKNOWN, status=status),
+    )
+
+    with pytest.raises(InvalidItemVerificationStateError):
+        await service.verify(
+            mission_id="mission-1",
+            item_id="item-1",
+            image=b"\xff\xd8\xffsample\xff\xd9",
+            principal=RolePrincipal(mission_id="mission-1", role=MissionRole.CHILD),
+        )
+
+    vision_client.analyze_product.assert_not_awaited()
+    repository.update_item_verification.assert_not_called()
+    repository.append_event.assert_not_called()
+    mission_service.return_home.assert_not_called()
 
 
 @pytest.mark.anyio
