@@ -184,7 +184,7 @@ BE-06은 BE-05의 service 구현에 의존하지 않는다. BE-01이 `current_st
 1. 세 테이블과 enum을 SQLAlchemy 2로 정의한다.
 2. Neon pooled URL, `pool_pre_ping=True`, 작은 pool을 사용하는 session factory를 만든다.
 3. `last_location_at`, `last_accuracy_m`, `current_route_kind`, `current_step_index`, `current_step_kind`, `progress_m`, `off_route_streak`, `wrong_way_streak`, `arrival_streak`, `last_road_event_at`, `road_vision_lease_until` 저장 필드를 고정한다.
-4. 6자리 join code와 부모/아이 opaque token을 만들고 해시만 저장한다.
+4. 6자리 join code와 부모/아이 opaque token을 만들고 해시만 저장한다. 코드 TTL은 `MISSION_JOIN_CODE_TTL_MINUTES` 설정 하나로 계산하며, create 응답에는 그 결과인 expiry를 포함한다.
 5. 생성·조회·최신 위치·상품 판정·event append/query와 도로 비전 lease acquire/release repository를 구현한다.
 
 완료 조건:
@@ -267,7 +267,7 @@ BE-06은 BE-05의 service 구현에 의존하지 않는다. BE-01이 `current_st
 
 완료 조건:
 
-- [ ] 생성 응답에 `missionId`, 6자리 `joinCode`, `parentToken`이 있다.
+- [ ] 생성 응답에 `missionId`, 6자리 `joinCode`, `joinCodeExpiresAt`, `parentToken`이 있다.
 - [ ] 참여 응답에 `childToken`, `status=GOING`, 첫 안내가 있다.
 - [ ] 부모/아이 endpoint 권한이 분리된다.
 - [ ] 불법 상태 전이는 409이고 안전 귀가는 항상 가능하다.

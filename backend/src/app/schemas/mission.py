@@ -30,6 +30,7 @@ class CreateMissionRequest(_CamelCaseModel):
 class CreateMissionResponse(_CamelCaseModel):
     mission_id: str
     join_code: str = Field(pattern=r"^\d{6}$")
+    join_code_expires_at: str
     parent_token: str
 
 
