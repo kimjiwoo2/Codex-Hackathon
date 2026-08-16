@@ -9,16 +9,22 @@ from app.repositories import MissionAggregate
 from app.services.parent_snapshot import ParentSnapshotNotFoundError, ParentSnapshotService
 
 
-def _aggregate(*, last_location_at=None, route_kind=RouteKind.OUTBOUND) -> MissionAggregate:
+def _aggregate(
+    *,
+    last_location_at=None,
+    status=MissionStatus.GOING,
+    route_kind=RouteKind.OUTBOUND,
+    progress_m=35.4,
+) -> MissionAggregate:
     mission = SimpleNamespace(
         id="mission-1",
-        status=MissionStatus.GOING,
+        status=status,
         last_lat=37.56,
         last_lng=126.97,
         last_location_at=last_location_at,
         last_accuracy_m=8.0,
         current_route_kind=route_kind,
-        progress_m=35.4,
+        progress_m=progress_m,
         outbound_route={"totalDistanceM": 120},
         return_route={"totalDistanceM": 80},
     )
@@ -91,6 +97,28 @@ def test_snapshot_marks_missing_location_stale_and_uses_return_route_distance() 
     assert snapshot.location is None
     assert snapshot.location_stale
     assert snapshot.remaining_distance_m == 44.6
+
+
+@pytest.mark.parametrize(
+    ("status", "route_kind", "progress_m", "expected_distance"),
+    [
+        (MissionStatus.GOING, RouteKind.OUTBOUND, 35.4, 84.6),
+        (MissionStatus.RETURNING, RouteKind.OUTBOUND, 35.4, 35.4),
+        (MissionStatus.RETURNING, RouteKind.RETURNING, 100.0, 0.0),
+    ],
+)
+def test_snapshot_uses_active_route_contract_for_remaining_distance(
+    status, route_kind, progress_m, expected_distance
+) -> None:
+    repository = Mock()
+    repository.get_aggregate.return_value = _aggregate(
+        status=status, route_kind=route_kind, progress_m=progress_m
+    )
+    repository.list_events.return_value = ()
+
+    snapshot = ParentSnapshotService(repository).get_snapshot("mission-1", now=datetime.now(UTC))
+
+    assert snapshot.remaining_distance_m == expected_distance
 
 
 def test_snapshot_rejects_unknown_mission() -> None:

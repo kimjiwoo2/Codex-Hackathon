@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
-from app.models import RouteKind
+from app.models import MissionStatus, RouteKind
 from app.repositories import MissionAggregate
 from app.schemas.parent import (
     ParentEvent,
@@ -90,6 +90,13 @@ def _location_from(mission: object) -> ParentLocation | None:
 
 
 def _remaining_distance(mission: object) -> float:
+    progress_m = float(getattr(mission, "progress_m", 0.0))
+    if (
+        getattr(mission, "status") is MissionStatus.RETURNING
+        and getattr(mission, "current_route_kind") is RouteKind.OUTBOUND
+    ):
+        return round(max(0.0, progress_m), 1)
+
     route = (
         getattr(mission, "return_route")
         if getattr(mission, "current_route_kind") is RouteKind.RETURNING
@@ -97,9 +104,7 @@ def _remaining_distance(mission: object) -> float:
     )
     total_distance = route.get("totalDistanceM", route.get("total_distance_m", 0.0))
     try:
-        return round(
-            max(0.0, float(total_distance) - float(getattr(mission, "progress_m", 0.0))), 1
-        )
+        return round(max(0.0, float(total_distance) - progress_m), 1)
     except (TypeError, ValueError):
         return 0.0
 
