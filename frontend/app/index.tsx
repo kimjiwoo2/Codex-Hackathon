@@ -27,7 +27,7 @@ export default function RoleScreen() {
             <Ionicons color={ICanColors.green} name="chevron-forward" size={22} />
           </Pressable>
         </Link>
-        <Link asChild href="/child" replace>
+        <Link asChild href="/child/join" replace>
           <Pressable accessibilityRole="button" style={styles.roleCard}>
             <View style={[styles.roleIcon, styles.childRoleIcon]}>
               <Ionicons color={ICanColors.yellowStrong} name="happy" size={28} />

@@ -44,6 +44,7 @@ export function ChildMissionCard({
 
       <Pressable
         accessibilityHint="누를 때마다 다음 길 안내 상태로 이동합니다"
+        accessibilityLabel="지도에서 다음 길 안내 보기"
         accessibilityRole="button"
         disabled={arrived || returning}
         onPress={onAdvance}
@@ -57,6 +58,12 @@ export function ChildMissionCard({
         {stage === 'STOP' && (
           <View style={styles.warningOverlay}>
             <Ionicons color="rgba(255,84,93,0.76)" name="warning" size={154} />
+          </View>
+        )}
+        {!arrived && !returning && (
+          <View pointerEvents="none" style={styles.mapHint}>
+            <Ionicons color={ICanColors.paper} name="hand-left" size={18} />
+            <Text style={styles.mapHintText}>지도를 눌러 다음 길 안내 보기</Text>
           </View>
         )}
       </Pressable>
@@ -95,6 +102,18 @@ const styles = StyleSheet.create({
   map: { height: '100%', width: '100%' },
   directionOverlay: { alignItems: 'center', bottom: 0, justifyContent: 'center', left: 0, position: 'absolute', right: 0, top: 0 },
   warningOverlay: { alignItems: 'center', bottom: 0, justifyContent: 'center', left: 0, position: 'absolute', right: 0, top: 0 },
+  mapHint: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(20,21,23,0.78)',
+    borderRadius: 18,
+    bottom: 12,
+    flexDirection: 'row',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    position: 'absolute',
+  },
+  mapHintText: { color: ICanColors.paper, fontSize: 13, fontWeight: '700', marginLeft: 6 },
   cameraButton: { alignItems: 'center', backgroundColor: ICanColors.yellow, borderRadius: 8, flexDirection: 'row', height: 55, justifyContent: 'center', marginTop: 24 },
   cameraButtonText: { color: ICanColors.paper, fontSize: 18, fontWeight: '600', marginLeft: 8 },
 });

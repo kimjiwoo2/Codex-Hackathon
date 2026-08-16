@@ -8,12 +8,12 @@ import { useChildJourney } from '@/features/child/child-journey-context';
 
 function JourneyHeadline({ stage }: { stage: ReturnType<typeof useChildJourney>['stage'] }) {
   if (stage === 'STOP') {
-    return <Text style={styles.headline}><Text style={styles.orange}>민준아, </Text>신호등 조심해!</Text>;
+    return <Text style={styles.headline}><Text style={styles.orange}>이준아, </Text>신호등 조심해!</Text>;
   }
   if (stage === 'ARRIVED') {
     return <Text style={styles.headline}><Text style={styles.green}>행복 슈퍼</Text>에 도착했어!</Text>;
   }
-  return <Text style={styles.headline}>안녕, <Text style={styles.orange}>민준아!</Text></Text>;
+  return <Text style={styles.headline}>안녕, <Text style={styles.orange}>이준아!</Text></Text>;
 }
 
 export default function ChildHomeScreen() {
