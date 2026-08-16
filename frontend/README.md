@@ -38,6 +38,14 @@ npm start
 | `npx tsc --noEmit` | TypeScript 타입 검사 |
 | `npm run test:parent-snapshot` | 부모 snapshot cursor·중복 방지 테스트 |
 
+## 환경 변수
+
+| 이름 | 용도 |
+| --- | --- |
+| `EXPO_PUBLIC_API_BASE_URL` | 백엔드 Function URL. 아이 참여·도로 JPEG 업로드에 사용한다. |
+
+카메라 화면은 `expo-camera`의 실제 `CameraView`를 사용한다. 지원하지 않는 기기·권한 거부·API 주소 미설정에서는 프레임을 전송하지 않고, 멈춰서 보호자와 함께 직접 확인하라는 보수적 안내만 표시한다.
+
 ## 디렉터리 구조
 
 | 경로 | 책임 |
