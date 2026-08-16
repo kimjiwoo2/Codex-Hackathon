@@ -49,6 +49,4 @@ yarn-error.*
 # IDE and OS
 .idea/
 .vscode/
-.claude/
-CLAUDE.md
 .DS_Store
