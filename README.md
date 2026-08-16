@@ -10,6 +10,7 @@
 ├── frontend/        # Expo 프런트엔드 애플리케이션
 ├── backend/         # 백엔드 애플리케이션 영역
 ├── docs/            # 스펙, 아키텍처, 의사결정, 개발 규칙
+├── logs/            # 사용자별 Codex 사용 로그
 ├── .github/         # GitHub 협업 템플릿
 └── AGENTS.md        # 작업 전 확인할 문서 인덱스
 ```
@@ -44,3 +45,4 @@ Lambda에서는 같은 이름의 환경 변수를 직접 주입합니다. 세부
 - 작업자 인덱스: [`AGENTS.md`](AGENTS.md)
 - 제품 스펙: [`docs/spec.md`](docs/spec.md)
 - 아키텍처: [`docs/architecture.md`](docs/architecture.md)
+- Codex 사용 로그: [`logs/README.md`](logs/README.md)
