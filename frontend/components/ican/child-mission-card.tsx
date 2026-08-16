@@ -50,7 +50,7 @@ export function ChildMissionCard({
         accessibilityHint="GPS 이동에 따라 자동으로 바뀌며, 데모에서는 눌러서 다음 단계로 이동할 수 있습니다"
         accessibilityLabel="지도에서 다음 길 안내 보기"
         accessibilityRole="button"
-        disabled={arrived || returning}
+        disabled={arrived}
         onPress={onAdvance}
         style={[styles.mapWrap, arrived && styles.arrivedMap]}>
         <Image resizeMode="cover" source={require('../../assets/ican/route-summary.png')} style={styles.map} />
@@ -64,10 +64,12 @@ export function ChildMissionCard({
             <Ionicons color="rgba(255,84,93,0.76)" name="warning" size={154} />
           </View>
         )}
-        {!arrived && !returning && (
+        {!arrived && (
           <View pointerEvents="none" style={styles.mapHint}>
             <Ionicons color={ICanColors.paper} name="navigate" size={18} />
-            <Text style={styles.mapHintText}>GPS 자동 안내 · 눌러서 데모 진행</Text>
+            <Text style={styles.mapHintText}>
+              {returning ? 'GPS 귀가 안내 · 눌러서 데모 완료' : 'GPS 자동 안내 · 눌러서 데모 진행'}
+            </Text>
           </View>
         )}
       </Pressable>

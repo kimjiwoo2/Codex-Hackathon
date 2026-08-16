@@ -9,6 +9,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "test:child-mission-state": "node --test features/child/child-mission-state.test.mjs",
+    "test:location-guidance": "node --test features/child/location-guidance.test.mjs",
     "test:parent-monitor": "node --test features/mission/parent-monitor-presentation.test.mjs",
     "test:parent-snapshot": "node --test services/parent-snapshot-adapter.test.mjs",
     "test:safety": "node --test --experimental-strip-types features/road-vision/safety.test.ts"

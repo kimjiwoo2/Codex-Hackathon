@@ -7,9 +7,9 @@ import { AppState, type AppStateStatus, Pressable, StyleSheet, Text, View } from
 import { PrimaryButton } from '@/components/ican/primary-button';
 import { Screen } from '@/components/ican/screen';
 import { ICanColors } from '@/constants/ican-theme';
-import { useChildMission } from '@/features/mission/child-mission-context';
+import { useChildMission } from '@/features/child/child-mission-context';
 import { jpegByteLength, roadFailureFromStatus, roadSafetyFailureGuidance, roadSafetyGuidance, type RoadSafetyGuidance } from '@/features/road-vision/safety';
-import { ChildApiError, uploadRoadFrame } from '@/services/child-mission-api';
+import { childMissionApi, MissionAdapterError } from '@/services/mission-adapter';
 
 const CADENCE_MS = 4_000;
 const MAX_JPEG_BYTES = 1_000_000;
@@ -36,6 +36,7 @@ export default function ChildRoadScreen() {
     inFlight.current = true;
     lastUploadAt.current = Date.now();
     try {
+      const capturedAt = new Date().toISOString();
       let frame = await camera.current.takePictureAsync({ base64: true, quality: 0.2 });
       if (!frame.base64 || jpegByteLength(frame.base64) > MAX_JPEG_BYTES) {
         frame = await camera.current.takePictureAsync({ base64: true, quality: 0.05 });
@@ -45,10 +46,18 @@ export default function ChildRoadScreen() {
         return;
       }
       if (appState.current !== 'active') return;
-      const result = await uploadRoadFrame(session, { base64: frame.base64, capturedAt: new Date().toISOString(), uri: frame.uri });
+      const result = await childMissionApi.uploadRoadFrame(session.missionId, session.childToken, {
+        base64: frame.base64,
+        capturedAt,
+        uri: frame.uri,
+      });
       announce(roadSafetyGuidance(result));
     } catch (cause) {
-      announce(roadSafetyFailureGuidance(cause instanceof ChildApiError ? roadFailureFromStatus(cause.status) : 'network'));
+      announce(
+        roadSafetyFailureGuidance(
+          cause instanceof MissionAdapterError ? roadFailureFromStatus(cause.status) : 'network',
+        ),
+      );
     } finally { inFlight.current = false; }
   }, [announce, cameraReady, session]);
 

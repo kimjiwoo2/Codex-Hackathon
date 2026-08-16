@@ -36,15 +36,22 @@ npm start
 | `npm run web` | 웹 앱 실행 |
 | `npm run lint` | Expo ESLint 검사 |
 | `npx tsc --noEmit` | TypeScript 타입 검사 |
+| `npm run test:child-mission-state` | 다중 상품 선택·귀가 전환 테스트 |
+| `npm run test:location-guidance` | 백엔드 안내 코드·상태 화면 매핑 테스트 |
+| `npm run test:safety` | 도로 보수 안내·JPEG 크기 계산 테스트 |
+| `npm run test:parent-monitor` | 부모 상태·이벤트 표현 테스트 |
 | `npm run test:parent-snapshot` | 부모 snapshot cursor·중복 방지 테스트 |
 
 ## 환경 변수
 
 | 이름 | 용도 |
 | --- | --- |
-| `EXPO_PUBLIC_API_BASE_URL` | 백엔드 Function URL. 아이 참여·도로 JPEG 업로드에 사용한다. |
+| `EXPO_PUBLIC_API_BASE_URL` | 백엔드 Function URL. 미션 생성·참여, 아이 위치·JPEG 업로드, 부모 polling에 사용한다. |
 
-카메라 화면은 `expo-camera`의 실제 `CameraView`를 사용한다. 지원하지 않는 기기·권한 거부·API 주소 미설정에서는 프레임을 전송하지 않고, 멈춰서 보호자와 함께 직접 확인하라는 보수적 안내만 표시한다.
+아이 화면은 `expo-location`으로 3초 또는 10m 간격의 위치를 전송하고 백엔드 안내 문구를
+`expo-speech`로 읽는다. 카메라 화면은 `expo-camera`의 실제 `CameraView`를 사용하며, 도로·상품
+JPEG는 1MB 이하만 전송한다. 지원하지 않는 기기·권한 거부·API 오류에서는 횡단 허가를 만들지
+않고 보호자와 함께 직접 확인하라는 보수적 안내만 표시한다.
 
 ## 디렉터리 구조
 

@@ -1,6 +1,8 @@
 import { createContext, PropsWithChildren, useContext, useMemo, useState } from 'react';
 
-import type { ItemVerificationResult, JoinMissionResult, MissionItemDto } from '@/features/mission/types';
+import type { ItemVerificationResult, JoinMissionResult, MissionItemDto, MissionStatus } from '@/features/mission/types';
+
+import { applyVerificationToMission, createChildMissionState, startReturningMission } from './child-mission-state';
 
 type ChildMissionContextValue = {
   session: JoinMissionResult | null;
@@ -8,6 +10,7 @@ type ChildMissionContextValue = {
   applyVerification: (result: ItemVerificationResult) => void;
   startReturning: () => void;
   join: (session: JoinMissionResult) => void;
+  updateStatus: (status: MissionStatus) => void;
   reset: () => void;
 };
 
@@ -20,14 +23,28 @@ export function ChildMissionProvider({ children }: PropsWithChildren) {
     session,
     selectedItem,
     join: (nextSession) => {
-      setSession(nextSession);
-      setSelectedItem(nextSession.items[0] ?? null);
+      const nextState = createChildMissionState(nextSession);
+      setSession(nextState.session);
+      setSelectedItem(nextState.selectedItem);
     },
     applyVerification: (result) => {
-      setSelectedItem((item) => item && { ...item, verdict: result.verdict, detectedLabel: result.detectedLabel });
-      setSession((current) => current && { ...current, status: result.status });
+      setSession((currentSession) => {
+        const nextState = applyVerificationToMission(
+          { session: currentSession, selectedItem },
+          result,
+        );
+        setSelectedItem(nextState.selectedItem);
+        return nextState.session;
+      });
     },
-    startReturning: () => setSession((current) => current && { ...current, status: 'RETURNING' }),
+    startReturning: () => {
+      setSession((currentSession) => {
+        const nextState = startReturningMission({ session: currentSession, selectedItem });
+        setSelectedItem(nextState.selectedItem);
+        return nextState.session;
+      });
+    },
+    updateStatus: (status) => setSession((current) => (current ? { ...current, status } : current)),
     reset: () => {
       setSession(null);
       setSelectedItem(null);

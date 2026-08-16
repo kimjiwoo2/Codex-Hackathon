@@ -1,4 +1,7 @@
 import type { CreateMissionResult, JoinMissionResult, MissionDraft } from '@/features/mission/types';
+import type { ChildInstructionCode } from '@/features/child/location-guidance';
+import { isRoadVisionResult, type RoadVisionResult } from '@/features/road-vision/safety';
+import { Platform } from 'react-native';
 
 type ErrorEnvelope = {
   error?: {
@@ -11,6 +14,7 @@ export type MissionAdapterErrorCode =
   | 'JOIN_CODE_INVALID'
   | 'JOIN_CODE_EXPIRED'
   | 'JOIN_CODE_ALREADY_USED'
+  | 'INVALID_ITEM_IMAGE'
   | 'MISSION_API_CONFIG_MISSING'
   | 'MISSION_API_RESPONSE_INVALID'
   | 'MISSION_API_REQUEST_FAILED';
@@ -29,6 +33,31 @@ export class MissionAdapterError extends Error {
 export interface MissionAdapter {
   createMission(draft: MissionDraft): Promise<CreateMissionResult>;
   joinMission(joinCode: string): Promise<JoinMissionResult>;
+}
+
+export interface ChildLocationUpdate {
+  latitude: number;
+  longitude: number;
+  accuracyM: number;
+  headingDeg?: number;
+  speedMps?: number;
+  observedAt: string;
+}
+
+export interface ChildLocationUpdateResult {
+  status: JoinMissionResult['status'];
+  instructionCode: ChildInstructionCode;
+  message: string;
+  vibrationHint: string;
+  remainingDistanceM: number;
+  offRoute: boolean;
+  wrongWay: boolean;
+}
+
+export interface CapturedRoadFrame {
+  uri: string;
+  base64: string;
+  capturedAt: string;
 }
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, '') ?? 'http://127.0.0.1:8000';
@@ -72,7 +101,7 @@ class HttpMissionAdapter implements MissionAdapter {
       missionId: readString(payload, ['missionId', 'mission_id']),
       childToken: readString(payload, ['childToken', 'child_token']),
       status: readString(payload, ['status']) as JoinMissionResult['status'],
-      instructionCode: readString(payload, ['instructionCode', 'instruction_code']),
+      instructionCode: readString(payload, ['instructionCode', 'instruction_code']) as ChildInstructionCode,
       message: readString(payload, ['message']),
       items: readItems(payload),
     };
@@ -154,6 +183,7 @@ function readErrorEnvelope(
     'JOIN_CODE_INVALID',
     'JOIN_CODE_EXPIRED',
     'JOIN_CODE_ALREADY_USED',
+    'INVALID_ITEM_IMAGE',
     'MISSION_API_CONFIG_MISSING',
     'MISSION_API_RESPONSE_INVALID',
     'MISSION_API_REQUEST_FAILED',
@@ -217,15 +247,129 @@ function readItems(payload: Record<string, unknown>) {
 
 export const childMissionApi = {
   join: (joinCode: string) => missionAdapter.joinMission(joinCode),
-  async verifyItem(missionId: string, itemId: string, childToken: string, imageUri: string) {
+  async updateLocation(missionId: string, childToken: string, location: ChildLocationUpdate) {
+    const payload = await requestJson(`/missions/${missionId}/locations`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${childToken}` },
+      body: JSON.stringify(location),
+    });
+    return {
+      status: readString(payload, ['status']) as ChildLocationUpdateResult['status'],
+      instructionCode: readString(payload, ['instructionCode', 'instruction_code']) as ChildInstructionCode,
+      message: readString(payload, ['message']),
+      vibrationHint: readString(payload, ['vibrationHint', 'vibration_hint']),
+      remainingDistanceM: readNumber(payload, ['remainingDistanceM', 'remaining_distance_m']),
+      offRoute: readBoolean(payload, ['offRoute', 'off_route']),
+      wrongWay: readBoolean(payload, ['wrongWay', 'wrong_way']),
+    } satisfies ChildLocationUpdateResult;
+  },
+  async uploadRoadFrame(
+    missionId: string,
+    childToken: string,
+    frame: CapturedRoadFrame,
+  ) {
     const form = new FormData();
-    form.append('image', { uri: imageUri, name: 'item.jpg', type: 'image/jpeg' } as never);
+    form.append('capturedAt', frame.capturedAt);
+    appendJpegImage(form, 'image', await buildRoadImageFormPart(frame), 'road-frame.jpg');
+    let response: Response;
+    try {
+      response = await fetch(`${apiBaseUrl}/missions/${missionId}/vision/road`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${childToken}` },
+        body: form,
+      });
+    } catch {
+      throw new MissionAdapterError('MISSION_API_REQUEST_FAILED', '서버에 연결하지 못했어요. 네트워크를 확인해 주세요.');
+    }
+    const body = await readResponseBody(response);
+    const payload = isRecord(body) ? body : {};
+    if (!response.ok) {
+      throw new MissionAdapterError(
+        'MISSION_API_REQUEST_FAILED',
+        (payload as ErrorEnvelope).error?.message as string || '도로 안전 확인에 실패했어요.',
+        response.status,
+      );
+    }
+    const result = payload.result;
+    if (!isRoadVisionResult(result)) {
+      throw new MissionAdapterError('MISSION_API_RESPONSE_INVALID', '안전 판단 형식이 올바르지 않습니다.', response.status);
+    }
+    return result as RoadVisionResult;
+  },
+  async verifyItem(missionId: string, itemId: string, childToken: string, imageUri: string) {
+    await assertLocalImageSize(imageUri);
+    const form = new FormData();
+    appendJpegImage(form, 'image', await buildItemImageFormPart(imageUri), 'item.jpg');
     let response: Response;
     try { response = await fetch(`${apiBaseUrl}/missions/${missionId}/items/${itemId}/verify`, { method: 'POST', headers: { Authorization: `Bearer ${childToken}` }, body: form }); }
     catch { throw new MissionAdapterError('MISSION_API_REQUEST_FAILED', '서버에 연결하지 못했어요. 네트워크를 확인해 주세요.'); }
     const body = await readResponseBody(response);
     const payload = isRecord(body) ? body : {};
-    if (!response.ok) throw new MissionAdapterError('MISSION_API_REQUEST_FAILED', (payload as ErrorEnvelope).error?.message as string || '상품 확인에 실패했어요.', response.status);
+    if (!response.ok) {
+      const errorMessage = (payload as ErrorEnvelope).error?.message as string | undefined;
+      const code = response.status === 422 ? 'INVALID_ITEM_IMAGE' : 'MISSION_API_REQUEST_FAILED';
+      throw new MissionAdapterError(code, errorMessage || '상품 확인에 실패했어요.', response.status);
+    }
     return payload as import('@/features/mission/types').ItemVerificationResult;
   },
 };
+
+function readNumber(payload: Record<string, unknown>, keys: string[]): number {
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+  }
+  throw new MissionAdapterError('MISSION_API_RESPONSE_INVALID', `서버 응답에 ${keys[0]} 값이 없습니다.`);
+}
+
+function readBoolean(payload: Record<string, unknown>, keys: string[]): boolean {
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === 'boolean') {
+      return value;
+    }
+  }
+  throw new MissionAdapterError('MISSION_API_RESPONSE_INVALID', `서버 응답에 ${keys[0]} 값이 없습니다.`);
+}
+
+async function buildRoadImageFormPart(frame: CapturedRoadFrame) {
+  if (Platform.OS === 'web') {
+    return jpegBlobFromBase64(frame.base64);
+  }
+  return { uri: frame.uri, name: 'road-frame.jpg', type: 'image/jpeg' } as never;
+}
+
+async function buildItemImageFormPart(uri: string) {
+  if (Platform.OS === 'web') {
+    return await readBlobFromUri(uri);
+  }
+  return { uri, name: 'item.jpg', type: 'image/jpeg' } as never;
+}
+
+async function assertLocalImageSize(uri: string) {
+  const blob = await readBlobFromUri(uri);
+  if (blob.size > 1_000_000) {
+    throw new MissionAdapterError('INVALID_ITEM_IMAGE', '사진은 1MB 이하로 다시 찍어 주세요.');
+  }
+}
+
+function appendJpegImage(form: FormData, field: string, value: Blob | never, name: string) {
+  if (Platform.OS === 'web') {
+    form.append(field, value, name);
+    return;
+  }
+  form.append(field, value);
+}
+
+async function readBlobFromUri(uri: string) {
+  const response = await fetch(uri);
+  return response.blob();
+}
+
+function jpegBlobFromBase64(base64: string): Blob {
+  const binary = atob(base64.includes(',') ? base64.slice(base64.indexOf(',') + 1) : base64);
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return new Blob([bytes], { type: 'image/jpeg' });
+}

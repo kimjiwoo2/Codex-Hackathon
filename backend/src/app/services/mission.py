@@ -1,5 +1,6 @@
+from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
-from typing import Callable, Protocol
+from typing import Any, Callable, Protocol
 
 from app.core.errors import AppError
 from app.models import JoinCodeStatus, MissionStatus, RouteKind
@@ -121,7 +122,9 @@ class MissionService:
             )
         aggregate = self._repository.get_aggregate(mission_id)
         if aggregate is None:
-            raise AppError(code="MISSION_NOT_FOUND", message="미션을 찾을 수 없습니다.", status_code=404)
+            raise AppError(
+                code="MISSION_NOT_FOUND", message="미션을 찾을 수 없습니다.", status_code=404
+            )
         return JoinMissionResponse(
             mission_id=mission_id,
             child_token=child_token,
@@ -194,5 +197,15 @@ def _join_code_error(status: JoinCodeStatus) -> AppError:
     )
 
 
-def _item_responses(items: object) -> tuple[MissionItemResponse, ...]:
-    return tuple(MissionItemResponse(item_id=item.id, name=item.name, brand=item.brand, size=item.size, verdict=item.last_verdict, detected_label=item.detected_label) for item in items)
+def _item_responses(items: Iterable[Any]) -> tuple[MissionItemResponse, ...]:
+    return tuple(
+        MissionItemResponse(
+            item_id=item.id,
+            name=item.name,
+            brand=item.brand,
+            size=item.size,
+            verdict=item.last_verdict,
+            detected_label=item.detected_label,
+        )
+        for item in items
+    )

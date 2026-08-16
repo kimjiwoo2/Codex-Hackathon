@@ -18,6 +18,27 @@ from app.schemas.navigation.route import (
 from app.services.mission import MissionService
 
 
+def _item(
+    *,
+    item_id: str = "item-1",
+    name: str = "우유",
+    brand: str | None = "서울우유",
+    size: str | None = "1L",
+):
+    return type(
+        "MissionItem",
+        (),
+        {
+            "id": item_id,
+            "name": name,
+            "brand": brand,
+            "size": size,
+            "last_verdict": "UNKNOWN",
+            "detected_label": None,
+        },
+    )()
+
+
 def _route() -> Route:
     return Route(
         total_distance_m=120,
@@ -66,7 +87,11 @@ def _route_starting_at_crosswalk() -> Route:
 async def test_create_fetches_and_persists_round_trip_routes() -> None:
     repository = Mock()
     repository.create_mission.side_effect = lambda seed, items: MissionAggregate(
-        mission=type("Mission", (), {"id": "mission-1"})(), items=tuple(items)
+        mission=type("Mission", (), {"id": "mission-1"})(),
+        items=tuple(
+            _item(item_id=f"item-{index}", name=item.name, brand=item.brand, size=item.size)
+            for index, item in enumerate(items, start=1)
+        ),
     )
     routes = RoundTripRoutes(outbound=_route(), returning=_route())
     tmap = AsyncMock()
@@ -85,6 +110,7 @@ async def test_create_fetches_and_persists_round_trip_routes() -> None:
     assert len(response.join_code) == 6
     assert response.join_code_expires_at
     assert response.parent_token
+    assert response.items[0].item_id == "item-1"
     tmap.get_round_trip.assert_awaited_once()
     seed = repository.create_mission.call_args.args[0]
     assert seed.outbound_route == routes.outbound.model_dump(mode="json")
@@ -96,7 +122,11 @@ async def test_create_fetches_and_persists_round_trip_routes() -> None:
 async def test_create_preserves_first_actionable_crosswalk_as_initial_step() -> None:
     repository = Mock()
     repository.create_mission.side_effect = lambda seed, items: MissionAggregate(
-        mission=type("Mission", (), {"id": "mission-1"})(), items=tuple(items)
+        mission=type("Mission", (), {"id": "mission-1"})(),
+        items=tuple(
+            _item(item_id=f"item-{index}", name=item.name, brand=item.brand, size=item.size)
+            for index, item in enumerate(items, start=1)
+        ),
     )
     route = _route_starting_at_crosswalk()
     tmap = AsyncMock()
@@ -123,6 +153,10 @@ def test_join_consumes_code_once_and_returns_first_instruction() -> None:
         mission_id="mission-1",
     )
     repository.consume_join_code.return_value = True
+    repository.get_aggregate.return_value = MissionAggregate(
+        mission=type("Mission", (), {"id": "mission-1"})(),
+        items=(_item(),),
+    )
     service = MissionService(
         repository=repository, tmap_client=AsyncMock(), join_code_ttl_minutes=30
     )
@@ -132,6 +166,7 @@ def test_join_consumes_code_once_and_returns_first_instruction() -> None:
     assert response.status is MissionStatus.GOING
     assert response.instruction_code == "START_OUTBOUND"
     assert response.child_token
+    assert response.items[0].item_id == "item-1"
     repository.resolve_join_code.assert_called_once()
     repository.consume_join_code.assert_called_once()
 

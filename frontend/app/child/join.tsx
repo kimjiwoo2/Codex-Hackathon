@@ -8,7 +8,7 @@ import { Screen } from '@/components/ican/screen';
 import { TopBar } from '@/components/ican/top-bar';
 import { ICanColors } from '@/constants/ican-theme';
 import { useChildJourney } from '@/features/child/child-journey-context';
-import { useChildMission } from '@/features/mission/child-mission-context';
+import { useChildMission } from '@/features/child/child-mission-context';
 import { getJoinCodeErrorMessage } from '@/features/mission/presentation';
 import { useMissionDraft } from '@/features/mission/mission-draft-context';
 import { MissionAdapterError, missionAdapter } from '@/services/mission-adapter';
@@ -19,7 +19,7 @@ export default function ChildJoinScreen() {
   const [loading, setLoading] = useState(false);
   const { reset } = useChildJourney();
   const { setJoinResult } = useMissionDraft();
-  const { setSession } = useChildMission();
+  const { join } = useChildMission();
 
   const submit = async () => {
     if (joinCode.length !== 6) {
@@ -32,7 +32,7 @@ export default function ChildJoinScreen() {
     try {
       const session = await missionAdapter.joinMission(joinCode);
       setJoinResult(session);
-      setSession(session);
+      join(session);
       reset();
       router.replace('/child');
     } catch (caught) {
