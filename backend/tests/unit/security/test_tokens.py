@@ -2,6 +2,8 @@ import re
 
 import pytest
 
+from app.schemas.common import MissionRole
+from app.security.roles import MissionRoleTokenVerifier
 from app.security.tokens import (
     generate_join_code,
     generate_opaque_token,
@@ -12,6 +14,18 @@ from app.security.tokens import (
     verify_opaque_token,
     verify_secret,
 )
+
+
+class RepositoryThatMustNotBeCalled:
+    def find_mission_id_by_role_token_hash(self, encoded_hash: str, role: MissionRole) -> str:
+        raise AssertionError("invalid token must not reach the repository")
+
+
+@pytest.mark.parametrize("token", ["", " ", "too-short", "!" * 43, "a" * 44])
+def test_role_verifier_rejects_malformed_opaque_tokens_without_raising(token: str) -> None:
+    verifier = MissionRoleTokenVerifier(RepositoryThatMustNotBeCalled())
+
+    assert verifier.verify(token, MissionRole.PARENT) is None
 
 
 def test_join_code_is_exactly_six_digits() -> None:

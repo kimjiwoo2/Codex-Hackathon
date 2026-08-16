@@ -158,6 +158,48 @@ def test_plaintext_credentials_are_never_persisted(repository) -> None:
     assert mission.join_code_hash.startswith("pbkdf2_sha256$")
 
 
+def test_repository_rejects_plaintext_parent_token_hash(repository) -> None:
+    mission_repository, engine = repository
+
+    with pytest.raises(ValueError):
+        mission_repository.create_mission(
+            MissionSeed(
+                home_lat=37.55,
+                home_lng=126.97,
+                store_lat=37.56,
+                store_lng=126.98,
+                outbound_route={"points": []},
+                return_route={"points": []},
+                parent_token_hash=generate_opaque_token(),
+                join_code="135790",
+                join_code_expires_at=datetime.now(UTC) + timedelta(minutes=30),
+            ),
+            [],
+        )
+
+    with Session(engine) as session:
+        assert session.scalars(select(Mission)).all() == []
+
+
+def test_repository_rejects_plaintext_child_token_hash_without_consuming_code(
+    repository,
+) -> None:
+    mission_repository, _ = repository
+    aggregate, _, child_token, join_code = _create_mission(mission_repository)
+
+    with pytest.raises(ValueError):
+        mission_repository.consume_join_code(
+            aggregate.mission.id,
+            child_token_hash=child_token,
+        )
+
+    mission = mission_repository.get_mission(aggregate.mission.id)
+    assert mission is not None
+    assert mission.status is MissionStatus.WAITING
+    assert mission.child_token_hash is None
+    assert MissionJoinCodeVerifier(mission_repository).find_mission_id(join_code) == mission.id
+
+
 def test_role_token_verifier_separates_parent_and_child(repository) -> None:
     mission_repository, _ = repository
     aggregate, parent_token, child_token, _ = _create_mission(mission_repository)
@@ -335,6 +377,27 @@ def test_event_payload_rejects_raw_image_material(repository) -> None:
             MissionEventType.ROAD_HAZARD,
             {"content": "/9j/4AAQSkZJRgABAQAAAQABAAD"},
         )
+
+
+def test_event_payload_allows_safe_image_and_frame_metadata(repository) -> None:
+    mission_repository, _ = repository
+    aggregate, _, _, _ = _create_mission(mission_repository)
+
+    event = mission_repository.append_event(
+        aggregate.mission.id,
+        MissionEventType.ROAD_HAZARD,
+        {
+            "image_id": "normalized-image-1",
+            "frame_index": 3,
+            "image_sha256": "a" * 64,
+        },
+    )
+
+    assert event.payload == {
+        "image_id": "normalized-image-1",
+        "frame_index": 3,
+        "image_sha256": "a" * 64,
+    }
 
 
 def test_road_vision_lease_is_atomic_expires_and_releases(repository) -> None:

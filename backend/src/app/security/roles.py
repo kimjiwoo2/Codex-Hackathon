@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from typing import Protocol
 
 from app.schemas.common import MissionRole, RolePrincipal
-from app.security.tokens import hash_opaque_token, verify_join_code
+from app.security.tokens import hash_opaque_token, is_valid_opaque_token, verify_join_code
 
 
 class SecretHashCandidate(Protocol):
@@ -32,6 +32,8 @@ class MissionRoleTokenVerifier:
         self._repository = repository
 
     def verify(self, token: str, expected_role: MissionRole) -> RolePrincipal | None:
+        if not is_valid_opaque_token(token):
+            return None
         mission_id = self._repository.find_mission_id_by_role_token_hash(
             hash_opaque_token(token), expected_role
         )

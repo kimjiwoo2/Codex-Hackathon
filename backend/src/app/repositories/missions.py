@@ -20,7 +20,7 @@ from app.models import (
     RouteStepKind,
 )
 from app.schemas.common import MissionRole
-from app.security.tokens import hash_join_code, verify_join_code
+from app.security.tokens import hash_join_code, is_valid_opaque_token_hash, verify_join_code
 
 _JOIN_CODE_CREATION_LOCK = Lock()
 _POSTGRES_JOIN_CODE_LOCK_ID = 4_852_150_684_895_604_553
@@ -106,6 +106,8 @@ class MissionRepository:
         seed: MissionSeed,
         items: Sequence[MissionItemSeed],
     ) -> MissionAggregate:
+        if not is_valid_opaque_token_hash(seed.parent_token_hash):
+            raise ValueError("parent_token_hash must be a valid opaque-token hash")
         expires_at = _as_utc(seed.join_code_expires_at)
         checked_at = datetime.now(UTC)
         if expires_at <= checked_at:
@@ -171,6 +173,8 @@ class MissionRepository:
         child_token_hash: str,
         now: datetime | None = None,
     ) -> bool:
+        if not is_valid_opaque_token_hash(child_token_hash):
+            raise ValueError("child_token_hash must be a valid opaque-token hash")
         checked_at = _as_utc(now or datetime.now(UTC))
         statement = (
             update(Mission)
@@ -403,10 +407,7 @@ def _active_join_code_exists(session: Session, join_code: str, *, now: datetime)
     )
 
 
-def _reject_sensitive_payload(value: object, *, key: str = "") -> None:
-    normalized_key = "".join(character for character in key.lower() if character.isalnum())
-    if any(marker in normalized_key for marker in ("base64", "bytes", "frame", "image")):
-        raise SensitiveEventPayloadError("raw image material cannot be persisted in events")
+def _reject_sensitive_payload(value: object) -> None:
     if isinstance(value, (bytes, bytearray, memoryview)):
         raise SensitiveEventPayloadError("binary material cannot be persisted in events")
     if isinstance(value, str) and value.lstrip().lower().startswith("data:image/"):
@@ -414,8 +415,8 @@ def _reject_sensitive_payload(value: object, *, key: str = "") -> None:
     if isinstance(value, str) and _looks_like_base64_image(value):
         raise SensitiveEventPayloadError("base64 image material cannot be persisted in events")
     if isinstance(value, dict):
-        for child_key, child_value in value.items():
-            _reject_sensitive_payload(child_value, key=str(child_key))
+        for child_value in value.values():
+            _reject_sensitive_payload(child_value)
     elif isinstance(value, (list, tuple)):
         for child_value in value:
             _reject_sensitive_payload(child_value)

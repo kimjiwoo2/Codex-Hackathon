@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import hmac
+import re
 import secrets
 from typing import Final
 
@@ -8,6 +9,8 @@ _ALGORITHM: Final = "pbkdf2_sha256"
 _ITERATIONS: Final = 210_000
 _SALT_BYTES: Final = 16
 _TOKEN_BYTES: Final = 32
+_OPAQUE_TOKEN_PATTERN: Final = re.compile(r"[A-Za-z0-9_-]{43}\Z")
+_OPAQUE_TOKEN_HASH_PATTERN: Final = re.compile(r"sha256\$[0-9a-f]{64}\Z")
 
 
 def generate_join_code() -> str:
@@ -18,6 +21,19 @@ def generate_join_code() -> str:
 def generate_opaque_token() -> str:
     """Return a URL-safe opaque token backed by 256 random bits."""
     return secrets.token_urlsafe(_TOKEN_BYTES)
+
+
+def is_valid_opaque_token(token: object) -> bool:
+    """Return whether a value matches the generated 256-bit token encoding."""
+    return isinstance(token, str) and _OPAQUE_TOKEN_PATTERN.fullmatch(token) is not None
+
+
+def is_valid_opaque_token_hash(encoded_hash: object) -> bool:
+    """Return whether a value is a persisted opaque-token lookup hash."""
+    return (
+        isinstance(encoded_hash, str)
+        and _OPAQUE_TOKEN_HASH_PATTERN.fullmatch(encoded_hash) is not None
+    )
 
 
 def hash_join_code(join_code: str) -> str:
@@ -34,18 +50,14 @@ def verify_join_code(join_code: str, encoded_hash: str) -> bool:
 
 def hash_opaque_token(token: str) -> str:
     """Return a stable lookup hash for a token carrying 256 bits of entropy."""
-    if not token:
-        raise ValueError("token must not be empty")
+    if not is_valid_opaque_token(token):
+        raise ValueError("token must be a 43-character URL-safe opaque token")
     return f"sha256${hashlib.sha256(token.encode()).hexdigest()}"
 
 
 def verify_opaque_token(token: str, encoded_hash: str) -> bool:
     """Compare an opaque token with its lookup hash in constant time."""
-    try:
-        algorithm, _digest = encoded_hash.split("$", 1)
-    except (AttributeError, ValueError):
-        return False
-    if algorithm != "sha256":
+    if not is_valid_opaque_token(token) or not is_valid_opaque_token_hash(encoded_hash):
         return False
     return hmac.compare_digest(hash_opaque_token(token), encoded_hash)
 
