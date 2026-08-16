@@ -1,7 +1,7 @@
 # Codex Hackathon
 
 5시간 내 빠른 개발을 위한 프런트엔드·백엔드 모노레포입니다.
-프런트엔드는 Expo SDK 54 기반으로 구성되어 있으며, 백엔드는 기술 스택 확정 전입니다.
+프런트엔드는 Expo SDK 54 기반이며, 백엔드는 `uv`로 관리하는 FastAPI 모놀리스입니다.
 
 ## 저장소 구조
 
@@ -23,6 +23,16 @@ npm start
 ```
 
 세부 명령과 구조는 [`frontend/README.md`](frontend/README.md)를 확인합니다.
+
+## 백엔드 실행
+
+```bash
+cd backend
+uv sync --all-groups
+uv run uvicorn app.main:app --reload
+```
+
+세부 명령과 API 계약은 [`backend/README.md`](backend/README.md)를 확인합니다.
 
 ## 문서 진입점
 
