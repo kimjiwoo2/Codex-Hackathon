@@ -140,6 +140,21 @@ def test_mission_aggregate_round_trip_and_updates(repository) -> None:
     assert verified.last_verdict is ItemVerdict.MATCH
 
 
+def test_status_update_can_persist_return_route_authority(repository) -> None:
+    mission_repository, _ = repository
+    created, _, _, _ = _create_mission(mission_repository)
+
+    updated = mission_repository.update_status(
+        created.mission.id,
+        MissionStatus.RETURNING,
+        route_kind=RouteKind.RETURNING,
+    )
+
+    assert updated is not None
+    assert updated.status is MissionStatus.RETURNING
+    assert updated.current_route_kind is RouteKind.RETURNING
+
+
 def test_create_mission_persists_initial_route_step(repository) -> None:
     mission_repository, _ = repository
     aggregate, _, _, _ = _create_mission(

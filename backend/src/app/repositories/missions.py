@@ -161,12 +161,20 @@ class MissionRepository:
                 return None
             return MissionAggregate(mission=mission, items=tuple(mission.items))
 
-    def update_status(self, mission_id: str, status: MissionStatus) -> Mission | None:
+    def update_status(
+        self,
+        mission_id: str,
+        status: MissionStatus,
+        *,
+        route_kind: RouteKind | None = None,
+    ) -> Mission | None:
         with self._sessions.begin() as session:
             mission = session.get(Mission, mission_id)
             if mission is None:
                 return None
             mission.status = status
+            if route_kind is not None:
+                mission.current_route_kind = route_kind
             session.flush()
             return mission
 

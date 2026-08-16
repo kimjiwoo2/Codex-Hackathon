@@ -19,6 +19,7 @@ _OFF_ROUTE_DISTANCE_M = 30.0
 _WRONG_WAY_ANGLE_DEG = 120.0
 _ARRIVAL_DISTANCE_M = 30.0
 _DEBOUNCE_SAMPLES = 2
+_HOME_PROGRESS_EPSILON_M = 1.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,6 +131,12 @@ class LocationService:
         mission = self._repository.get_mission(mission_id)
         if mission is None:
             raise LookupError("mission not found")
+        if (
+            mission.status is MissionStatus.RETURNING
+            and mission.current_route_kind is RouteKind.OUTBOUND
+            and mission.progress_m <= _HOME_PROGRESS_EPSILON_M
+        ):
+            return self._complete_early_return_at_home(mission, request)
         route_kind, route, retracing_outbound = _active_route(mission)
         evaluation = self._navigation.evaluate(
             route=route,
@@ -142,6 +149,7 @@ class LocationService:
             prior_wrong_way_streak=mission.wrong_way_streak,
             prior_arrival_streak=mission.arrival_streak,
         )
+        self._append_navigation_events(mission, evaluation)
         updated = self._repository.update_location(
             mission_id,
             LocationUpdate(
@@ -164,6 +172,46 @@ class LocationService:
             raise LookupError("mission not found")
         status = _advance_arrival(self._repository, updated, evaluation.arrived)
         return LocationResponse(status=status.value, **evaluation.guidance.model_dump())
+
+    def _append_navigation_events(self, mission: object, evaluation: NavigationEvaluation) -> None:
+        if mission.off_route_streak < _DEBOUNCE_SAMPLES <= evaluation.off_route_streak:
+            self._repository.append_event(mission.id, MissionEventType.OFF_ROUTE)
+        if mission.wrong_way_streak < _DEBOUNCE_SAMPLES <= evaluation.wrong_way_streak:
+            self._repository.append_event(mission.id, MissionEventType.WRONG_WAY)
+
+    def _complete_early_return_at_home(
+        self, mission: object, request: LocationRequest
+    ) -> LocationResponse:
+        updated = self._repository.update_location(
+            mission.id,
+            LocationUpdate(
+                lat=request.latitude,
+                lng=request.longitude,
+                observed_at=request.observed_at,
+                accuracy_m=request.accuracy_m,
+                heading_deg=request.heading_deg,
+                speed_mps=request.speed_mps,
+                route_kind=RouteKind.OUTBOUND,
+                step_index=0,
+                step_kind=PersistedRouteStepKind.ARRIVAL,
+                progress_m=0,
+                off_route_streak=0,
+                wrong_way_streak=0,
+                arrival_streak=_DEBOUNCE_SAMPLES,
+            ),
+        )
+        if updated is None:
+            raise LookupError("mission not found")
+        status = _advance_arrival(self._repository, updated, arrived=True)
+        return LocationResponse(
+            status=status.value,
+            instruction_code=InstructionCode.ARRIVED,
+            message="집에 도착했어요.",
+            vibration_hint=VibrationHint.ARRIVAL,
+            remaining_distance_m=0,
+            off_route=False,
+            wrong_way=False,
+        )
 
 
 def haversine_meters(start: Coordinate, end: Coordinate) -> float:
@@ -341,9 +389,9 @@ def _active_route(mission: object) -> tuple[RouteKind, Route, bool]:
     status = getattr(mission, "status")
     if status is MissionStatus.RETURNING:
         outbound = Route.model_validate(getattr(mission, "outbound_route"))
-        if getattr(mission, "progress_m") < outbound.total_distance_m - _ARRIVAL_DISTANCE_M:
+        if getattr(mission, "current_route_kind") is RouteKind.OUTBOUND:
             return (
-                RouteKind.RETURNING,
+                RouteKind.OUTBOUND,
                 _reverse_outbound_to_progress(outbound, mission.progress_m),
                 True,
             )
@@ -358,6 +406,8 @@ def _reverse_outbound_to_progress(route: Route, progress_m: float) -> Route:
     travelled.append(_point_at_progress(route.points, capped_progress))
     reversed_points = list(reversed(travelled))
     total_distance = capped_progress
+    if total_distance <= _HOME_PROGRESS_EPSILON_M:
+        raise ValueError("early return route requires travelled distance")
     points = tuple(
         RoutePoint(
             longitude=point.longitude,
@@ -368,32 +418,14 @@ def _reverse_outbound_to_progress(route: Route, progress_m: float) -> Route:
     )
     if len(points) < 2:
         points = (
-            RoutePoint(
-                longitude=route.points[1].longitude,
-                latitude=route.points[1].latitude,
-                cumulative_distance_m=0,
-            ),
-            RoutePoint(
-                longitude=route.points[0].longitude,
-                latitude=route.points[0].latitude,
-                cumulative_distance_m=total_distance,
-            ),
+            points[0],
+            route.points[0].model_copy(update={"cumulative_distance_m": total_distance}),
         )
     return Route(
         total_distance_m=total_distance,
         total_time_seconds=0,
         points=points,
-        steps=(
-            RouteStep(
-                index=0, kind=RouteStepKind.START, coordinate=points[0], cumulative_distance_m=0
-            ),
-            RouteStep(
-                index=1,
-                kind=RouteStepKind.ARRIVE,
-                coordinate=points[-1],
-                cumulative_distance_m=total_distance,
-            ),
-        ),
+        steps=_reverse_steps(route.steps, capped_progress, points),
     )
 
 
@@ -408,6 +440,47 @@ def _point_at_progress(points: tuple[RoutePoint, ...], progress_m: float) -> Rou
                 cumulative_distance_m=progress_m,
             )
     return points[-1]
+
+
+def _reverse_steps(
+    steps: tuple[RouteStep, ...], progress_m: float, points: tuple[RoutePoint, ...]
+) -> tuple[RouteStep, ...]:
+    traversed = [step for step in steps if 0 < step.cumulative_distance_m <= progress_m]
+    reversed_steps = [
+        RouteStep(
+            index=index,
+            kind=_reverse_step_kind(step.kind),
+            coordinate=step.coordinate,
+            cumulative_distance_m=progress_m - step.cumulative_distance_m,
+            description="",
+            is_crosswalk=step.is_crosswalk or step.kind is RouteStepKind.CROSSWALK,
+            is_stairs=step.is_stairs,
+        )
+        for index, step in enumerate(reversed(traversed), start=1)
+        if step.kind is not RouteStepKind.ARRIVE
+    ]
+    return tuple(
+        [
+            RouteStep(
+                index=0, kind=RouteStepKind.START, coordinate=points[0], cumulative_distance_m=0
+            ),
+            *reversed_steps,
+            RouteStep(
+                index=len(reversed_steps) + 1,
+                kind=RouteStepKind.ARRIVE,
+                coordinate=points[-1],
+                cumulative_distance_m=progress_m,
+            ),
+        ]
+    )
+
+
+def _reverse_step_kind(kind: RouteStepKind) -> RouteStepKind:
+    if kind is RouteStepKind.LEFT_TURN:
+        return RouteStepKind.RIGHT_TURN
+    if kind is RouteStepKind.RIGHT_TURN:
+        return RouteStepKind.LEFT_TURN
+    return kind
 
 
 def _persisted_step_kind(step: RouteStep) -> PersistedRouteStepKind:
